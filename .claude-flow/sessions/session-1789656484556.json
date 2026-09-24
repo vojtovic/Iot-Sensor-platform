@@ -1,0 +1,20 @@
+{
+  "id": "session-1789656484556",
+  "startedAt": "2026-09-17T14:48:04.556Z",
+  "cwd": "/home/vojtovic1/Documents/semestralka_jeste_jednou",
+  "context": {
+    "lastMatchedPatterns": [
+      "mem-user_academic_level-----0"
+    ]
+  },
+  "metrics": {
+    "edits": 3,
+    "commands": 0,
+    "tasks": 0,
+    "errors": 0
+  },
+  "updatedAt": "2026-09-21T11:44:29.448Z",
+  "restoredAt": "2026-09-22T16:43:52.554Z",
+  "endedAt": "2026-09-22T16:45:40.246Z",
+  "duration": 439055690
+}

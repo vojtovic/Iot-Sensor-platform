@@ -1,0 +1,28 @@
+volumes:
+  timescaledb:
+    external: false
+  mosquitto-data:
+    external: false
+
+services:
+  timescaledb:
+    image: timescale/timescaledb-ha:pg18
+    volumes:
+      - timescaledb:/home/postgres/pgdata/data
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=timescaledb_iot
+    ports:
+      - 5432:5432
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    volumes:
+      - type: bind
+        source: ./docker/mosquitto/config/
+        target: /mosquitto/config/
+      - type: volume
+        source: mosquitto-data
+        target: /mosquitto/data/
+    ports:
+      - "1883:1883"

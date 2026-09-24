@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "updatedAt": 1790236648107,
+  "nodeCount": 1,
+  "contentFingerprint": "c21404c4_16292a9b_51",
+  "nodes": {
+    "mem-user_academic_level-----0": {
+      "id": "mem-user_academic_level-----0",
+      "category": "user_academic_level",
+      "confidence": 0.5700000000000001,
+      "accessCount": 2,
+      "createdAt": 1789656476306
+    }
+  },
+  "edges": [],
+  "pageRanks": {
+    "mem-user_academic_level-----0": 1
+  }
+}
