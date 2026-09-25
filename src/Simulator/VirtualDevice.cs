@@ -38,12 +38,12 @@ public static class VirtualDevice
             {
                 new Reading("temp1", value.GenerateValue(20, 33, 0.2), value.GenerateStatus()),
                 new Reading("hum1", value.GenerateValue(20, 90, 5), value.GenerateStatus()),
-                new Reading("co2", value.GenerateValue(0, 1000, 20), value.GenerateStatus()),
+                new Reading("co2", value.GenerateValue(400, 1200, 20), value.GenerateStatus()),
             },
         };
 
         i++;
-        return JsonSerializer.Serialize(massage);
+        return JsonSerializer.Serialize(massage, JsonOptions);
     }
 
 
