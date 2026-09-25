@@ -487,3 +487,9 @@ work.txt
 docs/
 .zed
 docker/mosquitto/data/
+
+# Nastroje (nepatri do repozitare)
+.claude-flow/
+.swarm/
+.claude/
+ruvector.db
