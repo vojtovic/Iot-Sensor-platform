@@ -3,6 +3,9 @@ volumes:
     external: false
   mosquitto-data:
     external: false
+  grafana-data:
+    external: false
+
 
 services:
   timescaledb:
@@ -26,3 +29,16 @@ services:
         target: /mosquitto/data/
     ports:
       - "1883:1883"
+
+  grafana:
+    image: grafana/grafana:13.2.2
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./docker/grafana/provisioning/:/etc/grafana/provisioning/
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - timescaledb
+    restart: unless-stopped
