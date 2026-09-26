@@ -493,3 +493,4 @@ docker/mosquitto/data/
 .swarm/
 .claude/
 ruvector.db
+.obsidian
