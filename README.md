@@ -16,7 +16,7 @@ IoT system for Acquisition, Transmission, and Storage of Sensor Data in Indoor E
 | Testing | xUnit | 2.9.3 | unnit tests in `tests/Domain.Tests` |
 |Runtime | Docekr Compose | - | broker, database and Grafana|
 
-<i>Tab.1 I/O table</i>
+<i>Tab.1 Technology</i>
 </div>
 
 
