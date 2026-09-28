@@ -1,5 +1,6 @@
 namespace Infrastructure.Messaging;
 
+using Microsoft.Extensions.Logging;
 using MQTTnet;
 using System.Text;
 using System.Buffers;
@@ -10,13 +11,19 @@ public class MqttBus : IMqttBus
 {
     private readonly IMqttClient _client;
     private readonly MqttClientOptions _options;
+    private readonly MqttClientDisconnectOptions _DisOptions;
+    private readonly ILogger<MqttBus> _logger;
 
-    public MqttBus(string host, string username, string password, int port)
+    public MqttBus(string host, string username, string password, int port, ILogger<MqttBus> logger)
     {
+        _logger = logger;
         _client = new MqttClientFactory().CreateMqttClient();
         _options = new MqttClientOptionsBuilder()
             .WithTcpServer(host, port)
             .WithCredentials(username, password)
+            .Build();
+
+        _DisOptions = new MqttClientDisconnectOptionsBuilder()
             .Build();
     }
 
@@ -42,6 +49,37 @@ public class MqttBus : IMqttBus
 
         await _client.SubscribeAsync(subscribeOptions, ct);
 
+
+        _client.DisconnectedAsync += async h =>
+        {
+            _logger.LogWarning($"Disconnected:{h.Reason}");
+            while (!ct.IsCancellationRequested)
+            {
+
+
+
+                try
+                {
+                    await Task.Delay(5000, ct);
+                    await _client.ConnectAsync(_options, ct);
+                    await _client.SubscribeAsync(subscribeOptions, ct);
+                    _logger.LogInformation("Reconnected");
+                    break;
+                }
+                catch (OperationCanceledException)
+                {
+                    //log
+                    _logger.LogInformation("END , OFF");
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Reconnect failed:");
+                }
+
+            }
+
+        };
 
     }
     public async Task PublishAsync(string topic, string payload, CancellationToken ct)

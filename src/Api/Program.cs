@@ -15,7 +15,8 @@ builder.Services.AddSingleton<IMqttBus>(_ => new MqttBus(
     builder.Configuration["Mqtt:Host"]!,
     builder.Configuration["Mqtt:Username"]!,
     builder.Configuration["Mqtt:Password"]!,
-    builder.Configuration.GetValue<int>("Mqtt:Port")));
+    builder.Configuration.GetValue<int>("Mqtt:Port"),
+    _.GetRequiredService<ILogger<MqttBus>>()));
 
 builder.Services.AddHostedService<TelemetryWorker>();
 builder.Services.AddScoped<IMeasurementWriter, MeasurementWriter>();
