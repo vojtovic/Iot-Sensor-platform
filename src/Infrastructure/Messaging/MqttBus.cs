@@ -11,11 +11,12 @@ public class MqttBus : IMqttBus
     private readonly IMqttClient _client;
     private readonly MqttClientOptions _options;
 
-    public MqttBus(string host, int port)
+    public MqttBus(string host, string username, string password, int port)
     {
         _client = new MqttClientFactory().CreateMqttClient();
         _options = new MqttClientOptionsBuilder()
             .WithTcpServer(host, port)
+            .WithCredentials(username, password)
             .Build();
     }
 

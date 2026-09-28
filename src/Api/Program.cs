@@ -13,6 +13,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddSingleton<IMqttBus>(_ => new MqttBus(
     builder.Configuration["Mqtt:Host"]!,
+    builder.Configuration["Mqtt:Username"]!,
+    builder.Configuration["Mqtt:Password"]!,
     builder.Configuration.GetValue<int>("Mqtt:Port")));
 
 builder.Services.AddHostedService<TelemetryWorker>();

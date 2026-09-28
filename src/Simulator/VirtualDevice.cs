@@ -59,6 +59,7 @@ public static class VirtualDevice
 
     public static async Task Publish_Sim_Message(int delay)
     {
+        var password = Environment.GetEnvironmentVariable("MQTT_PASSWORD");
         Console.CancelKeyPress += (sender, e) =>
         {
             e.Cancel = true;
@@ -71,6 +72,7 @@ public static class VirtualDevice
         var mqttClientOptions = new MqttClientOptionsBuilder()
             .WithTcpServer("localhost", 1883)
             .WithClientId(hardwareId)
+            .WithCredentials(hardwareId, password)
             .Build();
 
         await mqttClient.ConnectAsync(mqttClientOptions, CancellationToken.None);
@@ -80,8 +82,14 @@ public static class VirtualDevice
             while (!ct.IsCancellationRequested)
             {
                 var applicationMessage = Create_Message();
-                await mqttClient.PublishAsync(applicationMessage, CancellationToken.None);
+                var PublishAsyncResult = await mqttClient.PublishAsync(applicationMessage, CancellationToken.None);
+                if (!PublishAsyncResult.IsSuccess)
+                {
+                    Console.WriteLine($"Publish failed: {PublishAsyncResult.ReasonCode} {PublishAsyncResult.ReasonString}");
+                }
                 await Task.Delay(TimeSpan.FromSeconds(delay), ct);
+
+
             }
         }
         catch (TaskCanceledException)
