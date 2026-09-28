@@ -29,6 +29,8 @@ services:
         target: /mosquitto/data/
     ports:
       - "1883:1883"
+    environment:
+      - MOSQUITTO_DYNSEC_PASSWORD=${MOSQUITTO_DYNSEC_PASSWORD}
 
   grafana:
     image: grafana/grafana:13.2.2
@@ -39,6 +41,7 @@ services:
       - ./docker/grafana/provisioning/:/etc/grafana/provisioning/
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GRAFANA_DB_PASSWORD=${GRAFANA_DB_PASSWORD}
     depends_on:
       - timescaledb
     restart: unless-stopped
