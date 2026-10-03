@@ -58,6 +58,8 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
         {
             return Error("Stored capability declaration could not be parsed.");
         }
+        var acceptedSensors = new List<string>();
+        var acceptedActuators = new List<string>();
         if (jsonPayload.Sensors is not null)
         {
 
@@ -86,6 +88,7 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
                     CalibrationOffset = 0
                 };
                 appDbContext.Sensors.Add(sensor);
+                acceptedSensors.Add(newSensor.Channel);
             }
         ;
         }
@@ -102,6 +105,7 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
                     Kind = newActuator.Kind
                 };
                 appDbContext.Actuators.Add(actuator);
+                acceptedActuators.Add(newActuator.Channel);
             }
         ;
         }
@@ -128,7 +132,10 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
             Password: password,
             RetryAfter: null,
             Message: "Approved",
-            Channels: null
+            Channels: new ClaimChannels(
+
+                new ChannelGroup(acceptedSensors, []),
+                new ChannelGroup(acceptedActuators, []))
         );
 
     }
