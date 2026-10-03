@@ -22,7 +22,7 @@ public record DeviceCapabilities(IReadOnlyList<SensorDeclaration>? Sensors, IRea
 
 
 
-public class ClaimService(AppDbContext appDbContext, ILogger<ClaimService> logger) : IClaimService
+public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisioner, ILogger<ClaimService> logger) : IClaimService
 {
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -47,7 +47,7 @@ public class ClaimService(AppDbContext appDbContext, ILogger<ClaimService> logge
         await appDbContext.SaveChangesAsync(ct);
     }
 
-    private static async Task<ClaimResponseMessage> ApproveAsync(Device device, ClaimRequestMessage request, CancellationToken ct, AppDbContext appDbContext)
+    private async Task<ClaimResponseMessage> ApproveAsync(Device device, ClaimRequestMessage request, CancellationToken ct)
     {
         if (device.PendingCapabilities is null)
         {
@@ -105,19 +105,27 @@ public class ClaimService(AppDbContext appDbContext, ILogger<ClaimService> logge
             }
         ;
         }
+
+
+
+        var password = SecretGenerator.Password();
+
+        if (!await provisioner.CreateDeviceClientAsync(device.HardwareId, password, ct))
+        {
+            return Error("did not managed to create account in broker");
+        }
+
         device.Status = DeviceStatus.Approved;
         device.PendingCapabilities = null;
         device.ClaimToken = null;
         device.CredentialsIssuedAt = DateTimeOffset.UtcNow;
-
-
         await appDbContext.SaveChangesAsync(ct);
 
         return new ClaimResponseMessage(
             Status: ClaimStatus.Credentials,
             ServerTime: DateTimeOffset.UtcNow,
-            Username: null,
-            Password: null,
+            Username: device.HardwareId,
+            Password: password,
             RetryAfter: null,
             Message: "Approved",
             Channels: null
@@ -154,28 +162,26 @@ public class ClaimService(AppDbContext appDbContext, ILogger<ClaimService> logge
         Message: message,
         Channels: null
     );
-    private readonly AppDbContext _appDbContext = appDbContext;
 
     public async Task<ClaimResponseMessage> HandleAsync(ClaimRequestMessage request, CancellationToken ct)
     {
         if (request.HardwareId is not null && (request.Sensors is not null || request.Actuators is not null))
         {
-            var device = await _appDbContext.Devices.FirstOrDefaultAsync(d => d.HardwareId == request.HardwareId, ct);
+            var device = await appDbContext.Devices.FirstOrDefaultAsync(d => d.HardwareId == request.HardwareId, ct);
             if (device is null)
             {
-                await AddDevice(_appDbContext, request, ct);
+                await AddDevice(appDbContext, request, ct);
                 logger.LogInformation("Unknown device {Device}, registered as pending", request.HardwareId);
                 return Pending("device is pending", 5);
             }
 
             bool tokenValid = device.ClaimToken is not null && device.ClaimToken == request.ClaimToken;
 
-
             return device.Status switch
             {
-                DeviceStatus.Pending when tokenValid => await ApproveAsync(device, request, ct, _appDbContext),
+                DeviceStatus.Pending when tokenValid => await ApproveAsync(device, request, ct),
                 DeviceStatus.Pending when !tokenValid => Pending("Waiting for operator approval.", 5),
-                DeviceStatus.Approved when tokenValid => await ApproveAsync(device, request, ct, _appDbContext),
+                DeviceStatus.Approved when tokenValid => await ApproveAsync(device, request, ct),
                 DeviceStatus.Approved when !tokenValid => Pending("Device is already approved. A valid claim token is required to issue credentials.", 5),
                 DeviceStatus.Rejected or DeviceStatus.Disabled => Rejected("Device has been rejected or disabled by the operator."),
                 _ => Rejected("Unexpected device state.")

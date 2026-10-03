@@ -4,6 +4,7 @@ using Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using EFCore.NamingConventions;
 using Domain;
+using Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,6 +32,15 @@ builder.Services.AddSingleton<ITimestampResolver>(_ =>
             builder.Configuration.GetValue<int>("Telemetry:TimestampToleranceSeconds")))));
 builder.Services.AddHostedService<ClaimWorker>();
 builder.Services.AddScoped<IClaimService, ClaimService>();
+builder.Services.AddSingleton<IDeviceProvisioner>(_ => new DeviceProvisioner(
+    builder.Configuration["Mqtt:Host"]!,
+    builder.Configuration["Mqtt:Provisioner:Username"]!,
+    builder.Configuration["Mqtt:Provisioner:Password"]!,
+    builder.Configuration.GetValue<int>("Mqtt:Port"),
+    _.GetRequiredService<ILogger<DeviceProvisioner>>()
+));
+
+
 
 var app = builder.Build();
 app.MapGet("/", () => "Hello World!");
