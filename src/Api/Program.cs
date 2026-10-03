@@ -16,7 +16,12 @@ builder.Services.AddSingleton<IMqttBus>(_ => new MqttBus(
     builder.Configuration["Mqtt:Username"]!,
     builder.Configuration["Mqtt:Password"]!,
     builder.Configuration.GetValue<int>("Mqtt:Port"),
-    _.GetRequiredService<ILogger<MqttBus>>()));
+    _.GetRequiredService<ILogger<MqttBus>>(),
+    _.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping
+));
+
+//builder.Configuration["Mqtt:Provisioner:Username"]
+//builder.Configuration["Mqtt:Provisioner:Password"]
 
 builder.Services.AddHostedService<TelemetryWorker>();
 builder.Services.AddScoped<IMeasurementWriter, MeasurementWriter>();
@@ -24,6 +29,8 @@ builder.Services.AddSingleton<ITelemetryValidator, TelemetryValidator>();
 builder.Services.AddSingleton<ITimestampResolver>(_ =>
     new TimestampResolver((TimeSpan.FromSeconds(
             builder.Configuration.GetValue<int>("Telemetry:TimestampToleranceSeconds")))));
+builder.Services.AddHostedService<ClaimWorker>();
+builder.Services.AddScoped<IClaimService, ClaimService>();
 
 var app = builder.Build();
 app.MapGet("/", () => "Hello World!");

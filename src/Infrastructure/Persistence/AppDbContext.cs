@@ -61,5 +61,14 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Measurement>()
                 .Property(c => c.Quality)
                 .HasColumnType("smallint");
+
+        modelBuilder.Entity<Device>()
+                .Property(c => c.PendingCapabilities)
+                .HasColumnType("jsonb");
+
+        modelBuilder.Entity<Device>()
+                .Property(c => c.ClaimToken)
+                .HasColumnType("text");
     }
+
 }

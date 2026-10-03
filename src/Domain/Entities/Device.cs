@@ -11,4 +11,6 @@ public class Device
     public DateTimeOffset? LastSeenAt { get; set; }
     public DateTimeOffset? CredentialsIssuedAt { get; set; }
     public ICollection<Sensor> Sensors { get; set; } = new List<Sensor>();
+    public string? ClaimToken { get; set; }
+    public string? PendingCapabilities { get; set; }
 }
