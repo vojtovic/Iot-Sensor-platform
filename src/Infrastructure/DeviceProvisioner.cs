@@ -9,6 +9,7 @@ using System.Runtime.InteropServices;
 using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Security.Cryptography;
+using Ingest;
 
 public class DeviceProvisioner : IDeviceProvisioner
 {
@@ -16,6 +17,7 @@ public class DeviceProvisioner : IDeviceProvisioner
     private readonly MqttClientOptions _options;
     private readonly ILogger<DeviceProvisioner> _logger;
     private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
+    private readonly SemaphoreSlim _commandLock = new SemaphoreSlim(1, 1);
     private TaskCompletionSource<string>? _pending;
 
     public DeviceProvisioner(string host, string username, string password, int port, ILogger<DeviceProvisioner> logger)
@@ -39,7 +41,6 @@ public class DeviceProvisioner : IDeviceProvisioner
 
     public async Task<bool> CreateDeviceClientAsync(string Username, string Password, CancellationToken ct)
     {
-        await EnsureConnectionAsync(ct);
 
         var payload = JsonSerializer.Serialize(
             new
@@ -52,33 +53,8 @@ public class DeviceProvisioner : IDeviceProvisioner
             }
         );
 
-        var message = new MqttApplicationMessageBuilder()
-            .WithTopic("$CONTROL/dynamic-security/v1")
-            .WithPayload(payload)
-            .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)   // QoS 1
-            .Build();
-        await _client.PublishAsync(message, ct);
+        return await SendCommandAsync(payload, ct);
 
-        _pending = new TaskCompletionSource<string>();
-
-        try
-        {
-            var answer = await _pending.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
-            if (answer.Contains("error"))
-            {
-                return false;
-            }
-            return true;
-        }
-        catch (TimeoutException ex)
-        {
-            _logger.LogInformation("Broker did not answer: {ex}", ex);
-            return false;
-        }
-        finally
-        {
-            _pending = null;
-        }
 
     }
 
@@ -105,5 +81,68 @@ public class DeviceProvisioner : IDeviceProvisioner
 
 
     }
+
+    public async Task<bool> SetDevicePasswordAsync(string Username, string Password, CancellationToken ct)
+    {
+
+        var payload = JsonSerializer.Serialize(
+            new
+            {
+                commands = new[] { new{
+                command = "setClientPassword",
+                username = Username,
+                password = Password,
+             } }
+            }
+        );
+
+        return await SendCommandAsync(payload, ct);
+
+    }
+
+    private async Task<bool> SendCommandAsync(string payload, CancellationToken ct)
+    {
+        await _commandLock.WaitAsync(ct);
+        try
+        {
+
+
+            await EnsureConnectionAsync(ct);
+
+            var message = new MqttApplicationMessageBuilder()
+                .WithTopic("$CONTROL/dynamic-security/v1")
+                .WithPayload(payload)
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)   // QoS 1
+                .Build();
+
+            _pending = new TaskCompletionSource<string>();
+            await _client.PublishAsync(message, ct);
+
+
+            try
+            {
+                var answer = await _pending.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+                if (answer.Contains("error"))
+                {
+                    return false;
+                }
+                return true;
+            }
+            catch (TimeoutException ex)
+            {
+                _logger.LogWarning("Broker did not answer: {ex}", ex);
+                return false;
+            }
+            finally
+            {
+                _pending = null;
+            }
+        }
+        finally
+        {
+            _commandLock.Release();
+        }
+    }
+
 
 }

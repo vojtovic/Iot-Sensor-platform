@@ -188,7 +188,7 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
             {
                 DeviceStatus.Pending when tokenValid => await ApproveAsync(device, request, ct),
                 DeviceStatus.Pending when !tokenValid => Pending("Waiting for operator approval.", 5),
-                DeviceStatus.Approved when tokenValid => await ApproveAsync(device, request, ct),
+                DeviceStatus.Approved when tokenValid => await ReissueCredentialsAsync(device, ct),
                 DeviceStatus.Approved when !tokenValid => Pending("Device is already approved. A valid claim token is required to issue credentials.", 5),
                 DeviceStatus.Rejected or DeviceStatus.Disabled => Rejected("Device has been rejected or disabled by the operator."),
                 _ => Rejected("Unexpected device state.")
@@ -206,6 +206,33 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
            );
 
 
+    }
+    private async Task<ClaimResponseMessage> ReissueCredentialsAsync(Device device, CancellationToken ct)
+    {
+        var password = SecretGenerator.Password();
+        if (!await provisioner.SetDevicePasswordAsync(device.HardwareId, password, ct))
+        {
+            return Error("Failed to change password on the broker.");
+        }
+        device.ClaimToken = null;
+        device.CredentialsIssuedAt = DateTimeOffset.UtcNow;
+        await appDbContext.SaveChangesAsync(ct);
+        var sensors = await appDbContext.Sensors.Where(s => s.DeviceId == device.Id)
+                        .Select(s => s.Channel).ToListAsync(ct);
+        var actuators = await appDbContext.Actuators.Where(s => s.DeviceId == device.Id)
+                        .Select(s => s.Channel).ToListAsync(ct);
+
+        return new ClaimResponseMessage(
+            Status: ClaimStatus.Credentials,
+            ServerTime: DateTimeOffset.UtcNow,
+            Username: device.HardwareId,
+            Password: password,
+            RetryAfter: null,
+            Message: "Credentials reissued.",
+            Channels: new ClaimChannels(
+
+                new ChannelGroup(sensors, []),
+                new ChannelGroup(actuators, [])));
     }
 
 }
