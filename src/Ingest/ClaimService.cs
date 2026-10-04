@@ -189,6 +189,19 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
             }
 
             bool tokenValid = device.ClaimToken is not null && device.ClaimToken == request.ClaimToken;
+            if (device.Status == DeviceStatus.Rejected || device.Status == DeviceStatus.Disabled)
+            {
+                return Rejected("Device Rejected or Disabled");
+            }
+
+            var DeclarationApplied = await ApplyDeclaration(device, request, ct);
+            if (DeclarationApplied is not null)
+            {
+                return DeclarationApplied;
+            }
+
+
+
 
             return device.Status switch
             {
@@ -201,6 +214,8 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
             };
 
         }
+
+
         return new ClaimResponseMessage(
                Status: ClaimStatus.Rejected,
                ServerTime: DateTimeOffset.UtcNow,
@@ -213,6 +228,115 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
 
 
     }
+
+    private async Task<ClaimResponseMessage?> ApplyDeclaration(Device device, ClaimRequestMessage request, CancellationToken ct)
+    {
+        var codes = request.Sensors?.Select(s => s.Type).Distinct() ?? Array.Empty<string>();
+        var dictionary = await appDbContext.SensorTypes.Where(st => codes.Contains(st.Code)).ToDictionaryAsync(st => st.Code, st => st.Id, ct);
+
+        var sensors = await appDbContext.Sensors.Where(s => s.DeviceId == device.Id).ToListAsync(ct);
+        var actuators = await appDbContext.Actuators.Where(s => s.DeviceId == device.Id)
+                        .Select(s => new { s.Channel, Kind = s.Kind }).ToListAsync(ct);
+
+
+        var ChalNameSensors = sensors.Select(s => (s.Channel)).ToList();
+
+        var ActuatorsWeHave = actuators.Select(s => (s.Channel, s.Kind)).ToHashSet();
+        var ChalNameActuators = actuators.Select(s => (s.Channel)).ToList();
+
+        if (request.Sensors is not null)
+        {
+            var invalidSensorTypes = request.Sensors
+                .Where(s => s.Type == null || !dictionary.ContainsKey(s.Type))
+                .Select(s => s.Type)
+                .ToList();
+
+            if (invalidSensorTypes.Any())
+            {
+
+                logger.LogWarning("Unknown sensor types {type}", invalidSensorTypes);
+                //var existingSensor = sensors.FirstOrDefault(s => s.Channel == );
+                //existingSensor.ChannelStatus = ChannelStatus.Inactive;
+                //
+                //
+                return Error($"Unknown sensor types: {string.Join(", ", invalidSensorTypes)}");
+            }
+
+            foreach (var requestSensor in request.Sensors)
+            {
+                var existingSensor = sensors.FirstOrDefault(s => s.Channel == requestSensor.Channel);
+
+                var targetSensorTypeId = dictionary[requestSensor.Type];
+
+                if (existingSensor is not null)
+                {
+                    if (existingSensor.ChannelStatus == ChannelStatus.Declined)
+                    {
+
+                    }
+                    else if (existingSensor.ChannelStatus == ChannelStatus.Inactive)
+                    {
+                        existingSensor.ChannelStatus = ChannelStatus.Pending;
+                    }
+                    else if (existingSensor.SensorTypeId != targetSensorTypeId)
+                    {
+
+                        return Error($"Sensor Types dont match {string.Join(", ", existingSensor)} | {string.Join(", ", requestSensor)}");
+                    }
+
+                }
+                else
+                {
+                    var newSensor = new Sensor
+                    {
+                        Device = device,
+                        Channel = requestSensor.Channel,
+                        ChannelStatus = ChannelStatus.Pending,
+                        SensorTypeId = dictionary[requestSensor.Type],
+                        CalibrationOffset = 0
+                    };
+                    appDbContext.Sensors.Add(newSensor);
+
+                }
+            }
+
+
+            /* foreach (var requestSensor in request.Sensors)
+            {
+                var existingSensor = sensors.FirstOrDefault(s => s.Channel == requestSensor.Channel);
+                if (existingSensor is null)
+                {
+
+
+
+                    var newSensor = new Sensor
+                    {
+                        Device = device,
+                        Channel = requestSensor.Channel,
+                        ChannelStatus = ChannelStatus.Pending,
+                        SensorTypeId = dictionary[requestSensor.Type],
+                        CalibrationOffset = 0
+                    };
+                    appDbContext.Sensors.Add(newSensor);
+
+
+                }
+                else
+                {
+
+                    //existingSensor.ChannelStatus = ChannelStatus.Inactive;
+
+                }
+                } */
+        }
+        await appDbContext.SaveChangesAsync(ct);
+        return null;
+    }
+
+
+
+
+
     private async Task<ClaimResponseMessage> ReissueCredentialsAsync(ClaimRequestMessage request, Device device, CancellationToken ct)
     {
         var password = SecretGenerator.Password();
