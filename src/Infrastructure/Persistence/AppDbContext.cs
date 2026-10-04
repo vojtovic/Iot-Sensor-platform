@@ -63,10 +63,6 @@ public class AppDbContext : DbContext
                 .HasColumnType("smallint");
 
         modelBuilder.Entity<Device>()
-                .Property(c => c.PendingCapabilities)
-                .HasColumnType("jsonb");
-
-        modelBuilder.Entity<Device>()
                 .Property(c => c.ClaimToken)
                 .HasColumnType("text");
     }

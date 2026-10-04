@@ -7,4 +7,5 @@ public class Actuator
     public Device Device { get; set; } = null!;
     public string Channel { get; set; } = null!;
     public string Kind { get; set; } = null!;
+    public ChannelStatus ChannelStatus { get; set; }
 }

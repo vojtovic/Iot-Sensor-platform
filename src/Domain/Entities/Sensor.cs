@@ -9,4 +9,5 @@ public class Sensor
     public int SensorTypeId { get; set; }
     public SensorType SensorType { get; set; } = null!;
     public double CalibrationOffset { get; set; }
+    public ChannelStatus ChannelStatus { get; set; }
 }
