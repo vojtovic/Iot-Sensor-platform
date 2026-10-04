@@ -84,7 +84,11 @@ public class ClaimWorker(IMqttBus bus, ILogger<ClaimWorker> logger, IServiceScop
             }
             catch (JsonException ex)
             {
-                logger.LogError(ex, " Nevalidní zpráva. {Topic}", msg.Topic);
+                logger.LogError(ex, " Invalid message. {Topic}", msg.Topic);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, " Exception. {Topic}", msg.Topic);
             }
             return;
 

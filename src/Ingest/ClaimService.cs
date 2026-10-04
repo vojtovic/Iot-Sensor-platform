@@ -30,8 +30,11 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
     {
         PropertyNameCaseInsensitive = true
     };
-    private static async Task AddDevice(AppDbContext appDbContext, ClaimRequestMessage request, ILogger<ClaimService> logger, CancellationToken ct)
+    private static async Task<ClaimResponseMessage?> AddDevice(AppDbContext appDbContext, ClaimRequestMessage request, ILogger<ClaimService> logger, CancellationToken ct)
     {
+
+
+
         var NewDevice = new Device
         {
             HardwareId = request.HardwareId,
@@ -40,8 +43,6 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
             LastSeenAt = DateTimeOffset.UtcNow,
             RoomId = null
         };
-
-        appDbContext.Devices.Add(NewDevice);
 
 
         var codes = request.Sensors?.Select(s => s.Type).Distinct() ?? Array.Empty<string>();
@@ -55,7 +56,7 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
                 if (!dictionary.ContainsKey(s.Type))
                 {
                     logger.LogInformation("Unknown Sensore {Device}", s.Type);
-                    return;
+                    return Error($"Unknown Sensore {s.Type}");
                 }
             }
 
@@ -94,7 +95,9 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
             }
             ;
         }
+        appDbContext.Devices.Add(NewDevice);
         await appDbContext.SaveChangesAsync(ct);
+        return null;
     }
 
     private async Task<ClaimResponseMessage> ApproveAsync(Device device, ClaimRequestMessage request, CancellationToken ct)
@@ -181,12 +184,55 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
         if (request.HardwareId is not null && (request.Sensors is not null || request.Actuators is not null))
         {
             var device = await appDbContext.Devices.FirstOrDefaultAsync(d => d.HardwareId == request.HardwareId, ct);
+
+            var controlListSensors = new List<string>();
+            if (request.Sensors is not null)
+            {
+                foreach (var reqSensor in request.Sensors)
+                {
+                    if (string.IsNullOrWhiteSpace(reqSensor.Channel))
+                    {
+                        return Error("Empty/null string Sensors");
+                    }
+                    controlListSensors.Add(reqSensor.Channel);
+                }
+                if (request.Sensors.Count != controlListSensors.Distinct().Count())
+                {
+                    return Error("Channel Duplicity Sensors");
+                }
+            }
+            var controlListActuators = new List<string>();
+            if (request.Actuators is not null)
+            {
+                foreach (var reqActuators in request.Actuators)
+                {
+                    if (string.IsNullOrWhiteSpace(reqActuators.Channel))
+                    {
+                        return Error("Empty/null string Actuator");
+                    }
+                    controlListActuators.Add(reqActuators.Channel);
+                }
+                if (request.Actuators.Count != controlListActuators.Distinct().Count())
+                {
+                    return Error("Channel Duplicity Actuators");
+                }
+            }
+
             if (device is null)
             {
-                await AddDevice(appDbContext, request, logger, ct);
+                var AddDeviceOut = await AddDevice(appDbContext, request, logger, ct);
                 logger.LogInformation("Unknown device {Device}, registered as pending", request.HardwareId);
-                return Pending("device is pending", 5);
+                if (AddDeviceOut is null)
+                {
+                    return Pending("device is pending", 5);
+                }
+                else
+                {
+                    return AddDeviceOut;
+                }
             }
+
+
 
             bool tokenValid = device.ClaimToken is not null && device.ClaimToken == request.ClaimToken;
             if (device.Status == DeviceStatus.Rejected || device.Status == DeviceStatus.Disabled)
@@ -234,15 +280,10 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
         var codes = request.Sensors?.Select(s => s.Type).Distinct() ?? Array.Empty<string>();
         var dictionary = await appDbContext.SensorTypes.Where(st => codes.Contains(st.Code)).ToDictionaryAsync(st => st.Code, st => st.Id, ct);
 
-        var sensors = await appDbContext.Sensors.Where(s => s.DeviceId == device.Id).ToListAsync(ct);
-        var actuators = await appDbContext.Actuators.Where(s => s.DeviceId == device.Id)
-                        .Select(s => new { s.Channel, Kind = s.Kind }).ToListAsync(ct);
+        var sensors = await appDbContext.Sensors.Where(s => s.DeviceId == device.Id).Include(s => s.SensorType).ToListAsync(ct);
 
 
-        var ChalNameSensors = sensors.Select(s => (s.Channel)).ToList();
-
-        var ActuatorsWeHave = actuators.Select(s => (s.Channel, s.Kind)).ToHashSet();
-        var ChalNameActuators = actuators.Select(s => (s.Channel)).ToList();
+        var actuators = await appDbContext.Actuators.Where(s => s.DeviceId == device.Id).ToListAsync(ct);
 
         if (request.Sensors is not null)
         {
@@ -255,10 +296,6 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
             {
 
                 logger.LogWarning("Unknown sensor types {type}", invalidSensorTypes);
-                //var existingSensor = sensors.FirstOrDefault(s => s.Channel == );
-                //existingSensor.ChannelStatus = ChannelStatus.Inactive;
-                //
-                //
                 return Error($"Unknown sensor types: {string.Join(", ", invalidSensorTypes)}");
             }
 
@@ -281,7 +318,10 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
                     else if (existingSensor.SensorTypeId != targetSensorTypeId)
                     {
 
-                        return Error($"Sensor Types dont match {string.Join(", ", existingSensor)} | {string.Join(", ", requestSensor)}");
+                        return Error(
+                            $"Channel '{requestSensor.Channel}' is registered as '{existingSensor.SensorType.Code}' " +
+                            $"but the device now declares '{requestSensor.Type}'. " +
+                            "A type change must be resolved by the operator.");
                     }
 
                 }
@@ -299,36 +339,83 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
 
                 }
             }
+        }
 
-
-            /* foreach (var requestSensor in request.Sensors)
+        if (request.Actuators is not null)
+        {
+            foreach (var requestActuator in request.Actuators)
             {
-                var existingSensor = sensors.FirstOrDefault(s => s.Channel == requestSensor.Channel);
-                if (existingSensor is null)
+                var existingActuator = actuators.FirstOrDefault(s => s.Channel == requestActuator.Channel);
+
+
+                if (existingActuator is not null)
                 {
-
-
-
-                    var newSensor = new Sensor
+                    if (existingActuator.ChannelStatus == ChannelStatus.Declined)
                     {
-                        Device = device,
-                        Channel = requestSensor.Channel,
-                        ChannelStatus = ChannelStatus.Pending,
-                        SensorTypeId = dictionary[requestSensor.Type],
-                        CalibrationOffset = 0
-                    };
-                    appDbContext.Sensors.Add(newSensor);
 
+                    }
+                    else if (existingActuator.ChannelStatus == ChannelStatus.Inactive)
+                    {
+                        existingActuator.ChannelStatus = ChannelStatus.Pending;
+                    }
+                    else if (existingActuator.Kind != requestActuator.Kind)
+                    {
+
+                        return Error(
+                            $"Channel '{requestActuator.Channel}' is registered as '{existingActuator.Kind}' " +
+                            $"but the device now declares '{requestActuator.Kind}'. " +
+                            "A type change must be resolved by the operator.");
+                    }
 
                 }
                 else
                 {
-
-                    //existingSensor.ChannelStatus = ChannelStatus.Inactive;
+                    var newActuator = new Actuator
+                    {
+                        Device = device,
+                        Channel = requestActuator.Channel,
+                        ChannelStatus = ChannelStatus.Pending,
+                        Kind = requestActuator.Kind
+                    };
+                    appDbContext.Actuators.Add(newActuator);
 
                 }
-                } */
+            }
         }
+
+
+
+
+        var requestChannels = request.Sensors?.Select(s => s.Channel).ToList();
+        foreach (var sensor in sensors)
+        {
+            if (requestChannels is not null)
+            {
+
+
+                if (!requestChannels.Contains(sensor.Channel) && sensor.ChannelStatus != ChannelStatus.Declined)
+                {
+                    sensor.ChannelStatus = ChannelStatus.Inactive;
+                }
+            }
+        }
+
+
+
+        var requestChannelsActuators = request.Actuators?.Select(s => s.Channel).ToList();
+        foreach (var actuator in actuators)
+        {
+            if (requestChannelsActuators is not null)
+            {
+
+
+                if (!requestChannelsActuators.Contains(actuator.Channel) && actuator.ChannelStatus != ChannelStatus.Declined)
+                {
+                    actuator.ChannelStatus = ChannelStatus.Inactive;
+                }
+            }
+        }
+
         await appDbContext.SaveChangesAsync(ct);
         return null;
     }
@@ -348,27 +435,20 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
         device.CredentialsIssuedAt = DateTimeOffset.UtcNow;
         await appDbContext.SaveChangesAsync(ct);
         var sensors = await appDbContext.Sensors.Where(s => s.DeviceId == device.Id)
-                        .Select(s => new { s.Channel, Type = s.SensorType.Code }).ToListAsync(ct);
+                        .Select(s => new { s.Channel, ChannelStatus = s.ChannelStatus }).ToListAsync(ct);
         var actuators = await appDbContext.Actuators.Where(s => s.DeviceId == device.Id)
-                        .Select(s => new { s.Channel, Kind = s.Kind }).ToListAsync(ct);
+                        .Select(s => new { s.Channel, ChannelStatus = s.ChannelStatus }).ToListAsync(ct);
 
 
 
 
-        var reqSetSensors = sensors.Select(s => (s.Channel, s.Type)).ToHashSet();
-        var ChalNameSensors = sensors.Select(s => (s.Channel)).ToList();
-
-        var reqSetActuators = actuators.Select(s => (s.Channel, s.Kind)).ToHashSet();
-        var ChalNameActuators = actuators.Select(s => (s.Channel)).ToList();
-
-        var declaredSensors = request.Sensors?.Select(s => (s.Channel, s.Type)).ToHashSet() ?? [];
-        var declaredActuators = request.Actuators?.Select(s => (s.Channel, s.Kind)).ToHashSet() ?? [];
+        var AccetedSensors = sensors.Where(s => s.ChannelStatus == ChannelStatus.Active).Select(s => (s.Channel)).ToList();
+        var PendigSensors = sensors.Where(s => s.ChannelStatus == ChannelStatus.Pending).Select(s => (s.Channel)).ToList();
 
 
-        bool SensorsChanged = !reqSetSensors.SetEquals(declaredSensors);
-        bool ActuatorsChanged = !reqSetActuators.SetEquals(declaredActuators);
+        var AcceptedActuators = actuators.Where(s => s.ChannelStatus == ChannelStatus.Active).Select(s => (s.Channel)).ToList();
+        var PendigActuators = actuators.Where(s => s.ChannelStatus == ChannelStatus.Pending).Select(s => (s.Channel)).ToList();
 
-        var sensorsHash = new HashSet<string>();
 
         return new ClaimResponseMessage(
             Status: ClaimStatus.Credentials,
@@ -379,8 +459,8 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
             Message: "Credentials reissued.",
             Channels: new ClaimChannels(
 
-                new ChannelGroup(ChalNameSensors, []),
-                new ChannelGroup(ChalNameActuators, [])));
+                new ChannelGroup(AccetedSensors, PendigSensors),
+                new ChannelGroup(AcceptedActuators, PendigActuators)));
 
 
 
