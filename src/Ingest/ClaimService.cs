@@ -33,8 +33,6 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
     private static async Task<ClaimResponseMessage?> AddDevice(AppDbContext appDbContext, ClaimRequestMessage request, ILogger<ClaimService> logger, CancellationToken ct)
     {
 
-
-
         var NewDevice = new Device
         {
             HardwareId = request.HardwareId,
@@ -49,16 +47,29 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
 
 
         var dictionary = await appDbContext.SensorTypes.Where(st => codes.Contains(st.Code)).ToDictionaryAsync(st => st.Code, st => st.Id, ct);
+        var unknownTypeListSensors = new List<string>();
+        var ChaWithUnknown = new List<string>();
         if (request.Sensors is not null)
         {
             foreach (var s in request.Sensors)
             {
+                if (s.Type is null)
+                {
+                    return Error($"Sensor Channel {s.Channel} is null");
+                }
                 if (!dictionary.ContainsKey(s.Type))
                 {
-                    logger.LogInformation("Unknown Sensore {Device}", s.Type);
-                    return Error($"Unknown Sensore {s.Type}");
+                    unknownTypeListSensors.Add(s.Type);
+                    ChaWithUnknown.Add(s.Channel);
+
                 }
             }
+            if (unknownTypeListSensors.Any())
+            {
+                logger.LogWarning("Unknown Sensor {Device} in Channel {Chanel}", unknownTypeListSensors, ChaWithUnknown);
+                return Error($"Unknown Sensor {string.Join(", ", unknownTypeListSensors)} in channels {string.Join(", ", ChaWithUnknown)}");
+            }
+
 
             foreach (var newSensor in request.Sensors)
             {
@@ -192,13 +203,18 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
                 {
                     if (string.IsNullOrWhiteSpace(reqSensor.Channel))
                     {
-                        return Error("Empty/null string Sensors");
+                        return Error($"Sensor \"{reqSensor.Channel}\"   is not a usable channel name.");
                     }
                     controlListSensors.Add(reqSensor.Channel);
                 }
+                var duplicateSensorChannels = request.Sensors
+                    .GroupBy(a => a.Channel)
+                    .Where(g => g.Count() > 1)
+                    .Select(g => g.Key)
+                    .ToList();
                 if (request.Sensors.Count != controlListSensors.Distinct().Count())
                 {
-                    return Error("Channel Duplicity Sensors");
+                    return Error($"Channels in Sensors declared more than once: {string.Join(", ", duplicateSensorChannels)}");
                 }
             }
             var controlListActuators = new List<string>();
@@ -206,20 +222,37 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
             {
                 foreach (var reqActuators in request.Actuators)
                 {
+                    if (string.IsNullOrWhiteSpace(reqActuators.Channel) && string.IsNullOrWhiteSpace(reqActuators.Kind))
+                    {
+                        return Error($"No Channel no Kind.");
+                    }
+
                     if (string.IsNullOrWhiteSpace(reqActuators.Channel))
                     {
-                        return Error("Empty/null string Actuator");
+                        return Error($"Actuator Kind {reqActuators.Kind} has no Channel.");
                     }
+                    if (string.IsNullOrWhiteSpace(reqActuators.Kind))
+                    {
+                        return Error($"Actuator Channel {reqActuators.Channel} has no Kind.");
+                    }
+
                     controlListActuators.Add(reqActuators.Channel);
                 }
+                var duplicateActuatorChannels = request.Actuators
+                    .GroupBy(a => a.Channel)
+                    .Where(g => g.Count() > 1)
+                    .Select(g => g.Key)
+                    .ToList();
+
                 if (request.Actuators.Count != controlListActuators.Distinct().Count())
                 {
-                    return Error("Channel Duplicity Actuators");
+                    return Error($"Channels in Actuator declared more than once: {string.Join(", ", duplicateActuatorChannels)}");
                 }
             }
 
             if (device is null)
             {
+
                 var AddDeviceOut = await AddDevice(appDbContext, request, logger, ct);
                 logger.LogInformation("Unknown device {Device}, registered as pending", request.HardwareId);
                 if (AddDeviceOut is null)
@@ -231,7 +264,9 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
                     return AddDeviceOut;
                 }
             }
-
+            device.LastSeenAt = DateTimeOffset.UtcNow;
+            device.FirmwareVersion = request.FirmwareVersion;
+            await appDbContext.SaveChangesAsync(ct);
 
 
             bool tokenValid = device.ClaimToken is not null && device.ClaimToken == request.ClaimToken;

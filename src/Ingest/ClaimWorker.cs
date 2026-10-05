@@ -29,11 +29,13 @@ public class ClaimWorker(IMqttBus bus, ILogger<ClaimWorker> logger, IServiceScop
 
         await bus.SubscribeAsync("iot/v1/claim/request", async msg =>
         {
+            using var scope = scopeFactory.CreateScope();
+            var claimService = scope.ServiceProvider.GetRequiredService<IClaimService>();
             logger.LogInformation("Zpráva z {Topic}: {Payload}", msg.Topic, msg.Payload);
+            ClaimRequestMessage? jsonPayload = null;
             try
             {
-                var jsonPayload = JsonSerializer.Deserialize<ClaimRequestMessage>(msg.Payload, JsonOptionsRead);
-
+                jsonPayload = JsonSerializer.Deserialize<ClaimRequestMessage>(msg.Payload, JsonOptionsRead);
                 if (jsonPayload is null)
                 {
                     logger.LogWarning("Prázdná zpráva z {Topic}", msg.Topic);
@@ -43,8 +45,6 @@ public class ClaimWorker(IMqttBus bus, ILogger<ClaimWorker> logger, IServiceScop
                 logger.LogInformation("Čas: {Ts}, HardwareId: {HardwareId}, ClaimToken: {ClaimToken}, FirmwareVersion: {FirmwareVersion}",
                     jsonPayload.Ts, jsonPayload.HardwareId, jsonPayload.ClaimToken, jsonPayload.FirmwareVersion);
 
-                using var scope = scopeFactory.CreateScope();
-                var claimService = scope.ServiceProvider.GetRequiredService<IClaimService>();
 
                 if (jsonPayload.Sensors != null)
                 {
@@ -73,10 +73,6 @@ public class ClaimWorker(IMqttBus bus, ILogger<ClaimWorker> logger, IServiceScop
                 var topic = "iot/v1/claim/response/" + (jsonPayload.ClaimToken ?? jsonPayload.HardwareId);
 
                 await bus.PublishAsync(topic, serializedJson, ct);
-
-
-
-
             }
             catch (OperationCanceledException)
             {
@@ -88,7 +84,34 @@ public class ClaimWorker(IMqttBus bus, ILogger<ClaimWorker> logger, IServiceScop
             }
             catch (Exception ex)
             {
+
                 logger.LogError(ex, " Exception. {Topic}", msg.Topic);
+
+                if (jsonPayload is not null)
+                {
+                    var response = new ClaimResponseMessage(
+                        Status: ClaimStatus.Pending,
+                        ServerTime: DateTimeOffset.UtcNow,
+                       Username: null,
+                      Password: null,
+                      RetryAfter: 30,
+                      Message: "Internal error try again later.",
+                      Channels: null
+
+                    );
+                    var serializedJson = JsonSerializer.Serialize<ClaimResponseMessage>(response, JsonOptionsWrite);
+                    var topic = "iot/v1/claim/response/" + (jsonPayload.ClaimToken ?? jsonPayload.HardwareId);
+                    try
+                    {
+                        await bus.PublishAsync(topic, serializedJson, ct);
+                    }
+                    catch (Exception x)
+                    {
+                        logger.LogError(x, " Exception. {Topic} - Failed to deliver the error response.", msg.Topic);
+                    }
+
+                }
+
             }
             return;
 
