@@ -31,7 +31,7 @@ public class MeasurementWriter(AppDbContext appDbContext, ITimestampResolver tim
         {
             foreach (var reading in message.Readings)
             {
-                var sensor = device.Sensors.FirstOrDefault(s => s.Channel == reading.Channel);
+                var sensor = device.Sensors.FirstOrDefault(s => s.Channel == reading.Channel && s.ChannelStatus == ChannelStatus.Active);
                 if (sensor is not null)
                 {
                     var telemetryValidated = telemetryValidator.Evaluate(reading, sensor.SensorType);
