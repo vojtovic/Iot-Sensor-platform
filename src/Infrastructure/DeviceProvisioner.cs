@@ -38,6 +38,23 @@ public class DeviceProvisioner : IDeviceProvisioner
 
            };
     }
+    public async Task<bool> DisableDevice(string username, CancellationToken ct)
+    {
+
+
+
+        var payload = JsonSerializer.Serialize(
+            new
+            {
+                commands = new[] { new{
+                command = "disableClient",
+                username = username,
+             } }
+            }
+        );
+
+        return await SendCommandAsync(payload, ct);
+    }
 
     public async Task<bool> CreateDeviceClientAsync(string Username, string Password, CancellationToken ct)
     {

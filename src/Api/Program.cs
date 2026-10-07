@@ -5,6 +5,13 @@ using Microsoft.EntityFrameworkCore;
 using EFCore.NamingConventions;
 using Domain;
 using Infrastructure;
+using Microsoft.AspNetCore.OpenApi;
+using Scalar.AspNetCore;
+using api.Endpoints;
+using Npgsql.Internal;
+using System.Text.Json;
+using System.Net.Sockets;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,9 +27,6 @@ builder.Services.AddSingleton<IMqttBus>(_ => new MqttBus(
     _.GetRequiredService<ILogger<MqttBus>>(),
     _.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping
 ));
-
-//builder.Configuration["Mqtt:Provisioner:Username"]
-//builder.Configuration["Mqtt:Provisioner:Password"]
 
 builder.Services.AddHostedService<TelemetryWorker>();
 builder.Services.AddScoped<IMeasurementWriter, MeasurementWriter>();
@@ -40,9 +44,36 @@ builder.Services.AddSingleton<IDeviceProvisioner>(_ => new DeviceProvisioner(
     _.GetRequiredService<ILogger<DeviceProvisioner>>()
 ));
 
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+}
 
+);
 
+builder.Services.AddOpenApi();
 var app = builder.Build();
+
+
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.MapScalarApiReference();
+}
+
+
+
+
+
+
+app.MapDeviceEndpoints();
+app.GetDevice();
+app.GenerateClaimToken();
+app.UpdateDeviceStatusToDisable();
+app.UpdateDeviceStatusToRejected();
+
+
 app.MapGet("/", () => "Hello World!");
 
 app.Run();
