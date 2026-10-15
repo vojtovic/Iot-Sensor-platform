@@ -20,7 +20,7 @@ namespace api.Endpoints
         {
             var appRoute = app.MapGroup("/api/v1");
             appRoute.MapPatch(
-                "/sensor/{id}",
+                "/sensors/{id}",
                 async (
                     AppDbContext iot,
                     int id,
@@ -77,6 +77,79 @@ namespace api.Endpoints
                             {
                                 Channel = updatedSensor.Channel,
                                 ChannelStatus = updatedSensor.ChannelStatus,
+                                CalibrationOffset = updatedSensor.CalibrationOffset,
+                            }
+                        );
+                    }
+                    else
+                    {
+                        return Results.NoContent();
+                    }
+                }
+            );
+        }
+
+        public static void UpdateActuator(this WebApplication app)
+        {
+            var appRoute = app.MapGroup("/api/v1");
+            appRoute.MapPatch(
+                "/actuators/{id}",
+                async (
+                    AppDbContext iot,
+                    int id,
+                    UpdateActuatorRequest request,
+                    CancellationToken ct
+                ) =>
+                {
+                    var actuator = await iot.Actuators.FirstOrDefaultAsync(d => d.Id == id, ct);
+
+                    if (actuator is null)
+                    {
+                        return Results.NotFound();
+                    }
+
+                    if (actuator.ChannelStatus == ChannelStatus.Inactive)
+                    {
+                        return Results.Conflict(
+                            new { message = "you cant chage inactive channel" }
+                        );
+                    }
+                    if (
+                        request.status == ChannelStatus.Inactive
+                        || request.status == ChannelStatus.Pending
+                    )
+                    {
+                        return Results.BadRequest(
+                            new { message = "you cant make channel this status" }
+                        );
+                    }
+                    if (request is null)
+                    {
+                        return Results.BadRequest(new { message = "request is null" });
+                    }
+                    if (request.status is null)
+                    {
+                        return Results.BadRequest(new { message = "no changes" });
+                    }
+                    if (request.status is not null)
+                    {
+                        actuator.ChannelStatus = request.status.Value;
+                    }
+                    await iot.SaveChangesAsync(ct);
+
+                    var updatedActuator = await iot.Actuators.FirstOrDefaultAsync(
+                        d => d.Id == id,
+                        ct
+                    );
+
+                    if (updatedActuator is not null)
+                    {
+                        return Results.Ok(
+                            new
+                            {
+                                Channel = updatedActuator.Channel,
+                                ChannelStatus = updatedActuator.ChannelStatus,
+                                Kind = updatedActuator.Kind,
                             }
                         );
                     }
