@@ -1,0 +1,74 @@
+@page "/devices"
+@using Web.Models
+@using Domain
+@inject IHttpClientFactory HttpFactory
+
+
+
+<PageTitle>Devices</PageTitle>
+<h1>Devices</h1>
+<div>
+    <form action="/devices" data-enhance >
+        <input type="search" name="NameFilter" value="@NameFilter"/>
+        <input type="submit" value="Search" />
+    </form>
+</div>
+
+@if (devices is null)
+{
+    <p>loading…</p>
+}
+else if (devices.Count == 0)
+{
+    <p>None.</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr><th>Id</th><th>HardwareId</th><th>Status</th><td>FirmwareVersion</td><td>LastSeenAt</td><td>CredentialsIssuedAt</td><td>Room</td></tr>
+        </thead>
+        <tbody>
+            @foreach (var b in FilteredDevices)
+            {
+                <tr>
+                    <td>@b.Id</td>
+                    <td>@b.HardwareId</td>
+                    <td><span class="badge rounded-pill @StatusClass(b.Status)">@b.Status</span></td>
+                    <td>@b.FirmwareVersion</td>
+                    <td>@b.LastSeenAt</td>
+                    <td>@b.CredentialsIssuedAt</td>
+                    <td>@b.Room</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+
+
+@code {
+    private List<DeviceWeb>? devices;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var api = HttpFactory.CreateClient("Api");
+        devices = await api.GetFromJsonAsync<List<DeviceWeb>>("api/v1/devices",ApiJson.Options);
+    }
+
+    private static string StatusClass(DeviceStatus status) => status switch{
+        DeviceStatus.Approved =>"text-bg-success",
+        DeviceStatus.Pending =>"text-bg-warning",
+        DeviceStatus.Rejected =>"text-bg-danger",
+        DeviceStatus.Disabled =>"text-bg-secondary",
+
+        _ =>"text-bg-light"
+    };
+
+    [SupplyParameterFromQuery]
+    private string? NameFilter { get; set; }
+
+    private IEnumerable<DeviceWeb> FilteredDevices =>
+        devices?.Where(m => m.HardwareId.Contains(NameFilter ?? string.Empty,StringComparison.OrdinalIgnoreCase)) ?? [];
+
+}
