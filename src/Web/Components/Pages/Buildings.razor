@@ -4,8 +4,8 @@
 @rendermode InteractiveServer
 
 
-<PageTitle>Budovy</PageTitle>
-<h1>Budovy</h1>
+<PageTitle>Buildings</PageTitle>
+<h1>Buildings</h1>
 <div class="mb-3">
     <input class="form-control mb-2" placeholder="Name" @bind="newName"/>
     <input class="form-control mb-2" placeholder="Address" @bind="newAddress"/>
@@ -30,9 +30,10 @@ else if (buildings.Count == 0)
 }
 else
 {
+<span class="badge rounded-pill text-bg-secondary">@buildings.Count</span>
     <table class="table">
         <thead>
-            <tr><th>Id</th><th>Name</th><th>Address</th></tr>
+            <tr><th>Id</th><th>Name</th><th>Address</th><th>Detail</th></tr>
         </thead>
         <tbody>
             @foreach (var b in FilteredBuildings)
@@ -41,6 +42,7 @@ else
                     <td>@b.Id</td>
                     <td>@b.Name</td>
                     <td>@b.Address</td>
+                    <td><a href="buildings/@b.Id/rooms">Detail</a></td>
                 </tr>
             }
         </tbody>

@@ -2,16 +2,13 @@
 @using Web.Models
 @using Domain
 @inject IHttpClientFactory HttpFactory
-
+@rendermode InteractiveServer
 
 
 <PageTitle>Devices</PageTitle>
 <h1>Devices</h1>
 <div>
-    <form action="/devices" data-enhance >
-        <input type="search" name="NameFilter" value="@NameFilter"/>
-        <input type="submit" value="Search" />
-    </form>
+    <input class="form-control mb-2" type="search" placeholder="Search.." @bind="NameFilter" @bind:event="oninput"/>
 </div>
 
 @if (devices is null)
@@ -24,6 +21,7 @@ else if (devices.Count == 0)
 }
 else
 {
+<span class="badge rounded-pill text-bg-secondary">@devices.Count</span>
     <table class="table">
         <thead>
             <tr><th>Id</th><th>HardwareId</th><th>Status</th><td>FirmwareVersion</td><td>LastSeenAt</td><td>CredentialsIssuedAt</td><td>Room</td></tr>

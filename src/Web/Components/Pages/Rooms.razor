@@ -1,0 +1,103 @@
+@page "/rooms"
+@using Web.Models
+@inject IHttpClientFactory HttpFactory
+@rendermode InteractiveServer
+
+
+<PageTitle>Rooms</PageTitle>
+<h1>Rooms</h1>
+<div class="mb-3">
+    <input class="form-control mb-2" placeholder="Name" @bind="newName"/>
+    <input class="form-control mb-2" placeholder="Floor" @bind="newFloor" type="number"/>
+    <select class="form-select mb-2" @bind="newBuilding">
+        <option value="0">--Choose--</option>
+        @foreach (var b in buildings ?? []){
+        <option value="@b.Id">@b.Name</option>
+        }
+    </select>
+    <button class="btn btn-primary" @onclick="AddRoom">Add Room</button>
+</div>
+
+<div>
+    <input class="form-control mb-2" type="search" placeholder="Search.." @bind="NameFilter" @bind:event="oninput"/>
+</div>
+
+@if(message is not null){
+<div class="alert alert-info">@message</div>
+}
+
+@if (rooms is null)
+{
+    <p>loading…</p>
+}
+else if (rooms.Count == 0)
+{
+    <p>None.</p>
+}
+else
+{
+    <span class="badge rounded-pill text-bg-secondary">@rooms.Count</span>
+    <table class="table">
+        <thead>
+            <tr><th>Id</th><th>Name</th><th>Floor</th><th>Building</th></tr>
+        </thead>
+        <tbody>
+            @foreach (var b in FilteredRooms)
+            {
+                <tr>
+                    <td>@b.Id</td>
+                    <td>@b.Name</td>
+                    <td>@b.Floor</td>
+                    <td>@b.Building</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+
+
+@code {
+    private string newName = "";
+    private int newBuilding;
+    private int newFloor;
+    private string? message;
+
+    private List<RoomDto>? rooms;
+    private List<BuildingDto>? buildings;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var api = HttpFactory.CreateClient("Api");
+        rooms = await api.GetFromJsonAsync<List<RoomDto>>("api/v1/rooms");
+        buildings = await api.GetFromJsonAsync<List<BuildingDto>>("api/v1/buildings");
+
+    }
+
+    private async Task AddRoom()
+    {
+    var api = HttpFactory.CreateClient("Api");
+    var request = new CreateRoomRequest {Name = newName,BuildingId = newBuilding,Floor = newFloor};
+    var response = await api.PostAsJsonAsync("api/v1/rooms",request);
+        if(response.IsSuccessStatusCode){
+            message = "Room was added";
+            newName = "";
+            newFloor = 0;
+            newBuilding = 0;
+            rooms = await api.GetFromJsonAsync<List<RoomDto>>("api/v1/rooms");
+
+        }else
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            message = $"Error {(int)response.StatusCode}:{body}";
+
+        }
+    }
+
+
+    private string? NameFilter;
+
+    private IEnumerable<RoomDto> FilteredRooms =>
+        rooms?.Where(m => m.Name.Contains(NameFilter ?? string.Empty,StringComparison.OrdinalIgnoreCase)
+        ||(m.Building?.Contains(NameFilter ?? string.Empty,StringComparison.OrdinalIgnoreCase)?? false)) ?? [];
+}

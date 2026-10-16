@@ -1,0 +1,118 @@
+@page "/buildings/{Id:int}/rooms"
+@using Web.Models
+@inject IHttpClientFactory HttpFactory
+@rendermode InteractiveServer
+
+
+<PageTitle>Rooms</PageTitle>
+<h1>@building?.Name</h1>
+<div class="mb-3">
+    <span class="input-group-text">Name</span>
+    <input class="form-control mb-2" placeholder="Name" @bind="newName"/>
+    <span class="input-group-text">Floor</span>
+    <input class="form-control mb-2" placeholder="Floor" @bind="newFloor" type="number"/>
+    <button class="btn btn-primary" @onclick="AddRoom">Add Room</button>
+</div>
+
+<div>
+    <input class="form-control mb-2" type="search" placeholder="Search.." @bind="NameFilter" @bind:event="oninput"/>
+</div>
+
+@if(message is not null){
+<div class="alert alert-info">@message</div>
+}
+
+@if (building is null)
+{
+    <p>loading…</p>
+}
+else {
+
+
+@if (rooms is null|| rooms.Count == 0)
+{
+<p>No rooms...</p>
+}
+else
+{
+<span class="badge rounded-pill text-bg-secondary">@rooms.Count</span>
+<table class="table">
+    <thead>
+        <tr><th>Id</th><th>Name</th><th>Address</th><th>CreatedAt</th></tr>
+    </thead>
+    <tbody>
+
+            <tr>
+                <td>@building.Id</td>
+                <td>@building.Name</td>
+                <td>@building.Address</td>
+                <td>@building.CreatedAt</td>
+            </tr>
+    </tbody>
+</table>
+    <table class="table">
+        <thead>
+            <tr><th>Id</th><th>Name</th><th>Floor</th><th>Building</th></tr>
+        </thead>
+        <tbody>
+            @foreach (var b in FilteredRooms)
+            {
+                <tr>
+                    <td>@b.Id</td>
+                    <td>@b.Name</td>
+                    <td>@b.Floor</td>
+                    <td>@b.Building</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+}
+}
+
+
+@code {
+    [Parameter]
+    public int Id{get;set;}
+
+    private string newName = "";
+    private int newFloor;
+    private string? message;
+
+    private BuildingDto? building;
+    private List<RoomDto>? rooms;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var api = HttpFactory.CreateClient("Api");
+        building = await api.GetFromJsonAsync<BuildingDto>($"api/v1/buildings/{Id}");
+        rooms = await api.GetFromJsonAsync<List<RoomDto>>($"api/v1/buildings/{Id}/rooms");
+
+    }
+
+    private async Task AddRoom()
+    {
+    var api = HttpFactory.CreateClient("Api");
+    var request = new CreateRoomRequest {Name = newName,BuildingId = Id,Floor = newFloor};
+    var response = await api.PostAsJsonAsync("api/v1/rooms",request);
+        if(response.IsSuccessStatusCode){
+            message = "Room was added";
+            newName = "";
+            newFloor = 0;
+            rooms = await api.GetFromJsonAsync<List<RoomDto>>($"api/v1/buildings/{Id}/rooms");
+
+        }else
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            message = $"Error {(int)response.StatusCode}:{body}";
+
+        }
+    }
+
+
+    private string? NameFilter;
+
+    private IEnumerable<RoomDto> FilteredRooms =>
+        rooms?.Where(m => m.Name.Contains(NameFilter ?? string.Empty,StringComparison.OrdinalIgnoreCase)
+        ||(m.Building?.Contains(NameFilter ?? string.Empty,StringComparison.OrdinalIgnoreCase)?? false)) ?? [];
+}
