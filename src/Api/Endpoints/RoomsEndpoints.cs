@@ -113,5 +113,36 @@ namespace api.Endpoints
                 }
             );
         }
+
+
+        public static void GetBuildingRooms(this WebApplication app)
+        {
+            var appRoute = app.MapGroup("/api/v1");
+            appRoute.MapGet(
+                "/buildings/{id}/rooms",
+                async (AppDbContext iot, int id, CancellationToken ct) =>
+                {
+                    if (!await iot.Buildings.AnyAsync(s => s.Id == id, ct))
+                    {
+                        return Results.NotFound(
+                            new { message = "There is no building with this id" }
+                        );
+                    }
+                    var rooms = await iot
+                        .Rooms.Where(d => d.BuildingId == id)
+                        .Select(d => new RoomDto
+                        {
+                            Id = d.Id,
+                            Name = d.Name,
+                            BuildingId = d.BuildingId,
+                            Floor = d.Floor,
+                            Building = d.Building.Name
+                        })
+                        .ToListAsync(ct);
+
+                    return Results.Ok(rooms);
+                }
+            );
+        }
     }
 }

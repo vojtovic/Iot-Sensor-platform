@@ -82,6 +82,7 @@ app.UpdateSensor();
 app.UpdateActuator();
 app.AddBuilding();
 app.AddRoom();
+app.GetBuildingRooms();
 
 app.MapGet("/", () => "Hello World!");
 
