@@ -24,7 +24,7 @@ else
 <span class="badge rounded-pill text-bg-secondary">@devices.Count</span>
     <table class="table">
         <thead>
-            <tr><th>Id</th><th>HardwareId</th><th>Status</th><td>FirmwareVersion</td><td>LastSeenAt</td><td>CredentialsIssuedAt</td><td>Room</td></tr>
+            <tr><th>Id</th><th>HardwareId</th><th>Status</th><td>FirmwareVersion</td><td>LastSeenAt</td><td>CredentialsIssuedAt</td><td>Room</td><td>Link</td></tr>
         </thead>
         <tbody>
             @foreach (var b in FilteredDevices)
@@ -37,6 +37,7 @@ else
                     <td>@b.LastSeenAt</td>
                     <td>@b.CredentialsIssuedAt</td>
                     <td>@b.Room</td>
+                    <td><a href="devices/@b.Id/sensors">Sensors</a>|<a href="devices/@b.Id/actuators">Actuators</a></td>
                 </tr>
             }
         </tbody>

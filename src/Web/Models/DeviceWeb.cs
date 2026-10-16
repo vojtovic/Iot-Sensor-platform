@@ -14,6 +14,8 @@ public class DeviceWeb
     public DateTimeOffset? LastSeenAt { get; set; }
     public DateTimeOffset? CredentialsIssuedAt { get; set; }
     public string? Room { get; set; }
+    public List<SensorWeb> Sensors { get; set; } = [];
+    public List<ActuatorWeb> Actuators { get; set; } = [];
 
 
 }

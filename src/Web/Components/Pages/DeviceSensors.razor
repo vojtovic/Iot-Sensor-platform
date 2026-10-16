@@ -1,0 +1,65 @@
+@page "/devices/{Id:int}/sensors"
+@using Web.Models
+@using Domain
+@inject IHttpClientFactory HttpFactory
+@rendermode InteractiveServer
+
+
+<PageTitle>Sensors</PageTitle>
+<h1>Sensors</h1>
+
+@if (device is null)
+{
+    <p>loading…</p>
+}
+else if (device.Sensors.Count == 0)
+{
+    <p>None.</p>
+}
+else
+{
+<span class="badge rounded-pill text-bg-secondary">@device.Sensors.Count</span>
+    <table class="table">
+        <thead>
+            <tr><th>Id</th><th>DeviceId</th><th>ChannelStatus</th><td>Channel</td><td>SensorTypeId</td><td>CalibrationOffset</td></tr>
+        </thead>
+        <tbody>
+            @foreach (var s in device.Sensors)
+            {
+                <tr>
+                    <td>@s.Id</td>
+                    <td>@s.DeviceId</td>
+                    <td><span class="badge rounded-pill @StatusClass(s.ChannelStatus)">@s.ChannelStatus</span></td>
+                    <td>@s.Channel</td>
+                    <td>@s.SensorTypeId</td>
+                    <td>@s.CalibrationOffset</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+
+
+@code {
+    private DeviceWeb? device;
+
+    [Parameter]
+    public int Id{get;set;}
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var api = HttpFactory.CreateClient("Api");
+        device = await api.GetFromJsonAsync<DeviceWeb>($"api/v1/devices/{Id}",ApiJson.Options);
+    }
+
+    private static string StatusClass(ChannelStatus status) => status switch{
+        ChannelStatus.Active =>"text-bg-success",
+        ChannelStatus.Pending =>"text-bg-warning",
+        ChannelStatus.Inactive =>"text-bg-danger",
+        ChannelStatus.Declined =>"text-bg-secondary",
+
+        _ =>"text-bg-light"
+    };
+
+}
