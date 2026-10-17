@@ -161,5 +161,23 @@ public class DeviceProvisioner : IDeviceProvisioner
         }
     }
 
+    public async Task<bool> EnableDevice(string username, CancellationToken ct)
+    {
+
+
+
+        var payload = JsonSerializer.Serialize(
+            new
+            {
+                commands = new[] { new{
+                command = "enableClient",
+                username = username,
+             } }
+            }
+        );
+
+        return await SendCommandAsync(payload, ct);
+    }
+
 
 }

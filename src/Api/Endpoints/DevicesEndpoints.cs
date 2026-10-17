@@ -387,5 +387,86 @@ namespace api.Endpoints
                 }
             );
         }
+
+        public static void UpdateDeviceStatusToPending(this WebApplication app)
+        {
+            var appRoute = app.MapGroup("/api/v1");
+            appRoute.MapPost(
+                "/devices/{id}/restore",
+                async (
+                    AppDbContext iot,
+                    int id,
+                    CancellationToken ct
+                ) =>
+                {
+                    var device = await iot.Devices.FirstOrDefaultAsync(d => d.Id == id, ct);
+
+                    if (device is null)
+                    {
+                        return Results.NotFound();
+                    }
+
+                    if (device.Status == DeviceStatus.Rejected)
+                    {
+                        device.Status = DeviceStatus.Pending;
+                        await iot.SaveChangesAsync(ct);
+
+                    }
+                    else
+                    {
+                        return Results.Conflict(new { message = "You can not do this" });
+                    }
+
+                    return Results.NoContent();
+                }
+            );
+
+        }
+
+
+        public static void UpdateDeviceStatusToApproved(this WebApplication app)
+        {
+            var appRoute = app.MapGroup("/api/v1");
+            appRoute.MapPost(
+                "/devices/{id}/enable",
+                async (
+                    AppDbContext iot,
+                    int id,
+                    IDeviceProvisioner provisioner,
+                    CancellationToken ct
+                ) =>
+                {
+                    var device = await iot.Devices.FirstOrDefaultAsync(d => d.Id == id, ct);
+
+                    if (device is null)
+                    {
+                        return Results.NotFound();
+                    }
+
+                    if (device.Status == DeviceStatus.Disabled)
+                    {
+                        if (await provisioner.EnableDevice(device.HardwareId, ct))
+                        {
+                            device.Status = DeviceStatus.Approved;
+                            await iot.SaveChangesAsync(ct);
+                        }
+                        else
+                        {
+                            return Results.Problem(
+                                "Failed to set status to disable",
+                                statusCode: 502
+                            );
+                        }
+                    }
+                    else
+                    {
+                        return Results.Conflict(new { message = "You can not do this" });
+                    }
+
+
+                    return Results.NoContent();
+                }
+            );
+        }
     }
 }

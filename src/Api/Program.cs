@@ -83,6 +83,8 @@ app.UpdateActuator();
 app.AddBuilding();
 app.AddRoom();
 app.GetBuildingRooms();
+app.UpdateDeviceStatusToPending();
+app.UpdateDeviceStatusToApproved();
 
 app.MapGet("/", () => "Hello World!");
 
