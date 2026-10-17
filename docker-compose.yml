@@ -42,6 +42,7 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GRAFANA_DB_PASSWORD=${GRAFANA_DB_PASSWORD}
+      - GF_AUTH_ANONYMOUS_ENABLED=true
     depends_on:
       - timescaledb
     restart: unless-stopped

@@ -1,0 +1,220 @@
+@page "/claims"
+@using Web.Models
+@using Domain
+@inject IHttpClientFactory HttpFactory
+@rendermode InteractiveServer
+
+
+<PageTitle>Pendig-Devices</PageTitle>
+<h1>Pending-Devices</h1>
+<div>
+    <input class="form-control mb-2" type="search" placeholder="Search.." @bind="NameFilter" @bind:event="oninput"/>
+</div>
+
+@if (devices is null)
+{
+    <p>loading…</p>
+}
+else if (devices.Count == 0)
+{
+    <p>None.</p>
+}
+else
+{
+<span class="badge rounded-pill text-bg-secondary">@FilteredDevices.Count(m => (m.Status == DeviceStatus.Pending || (m.Status == DeviceStatus.Approved && m.Sensors.Any(s => s.ChannelStatus == ChannelStatus.Pending))))</span>
+    <table class="table">
+        <thead>
+            <tr><th>Id</th><th>HardwareId</th><th>Status</th><td>FirmwareVersion</td><td>LastSeenAt</td><td>CredentialsIssuedAt</td><td>Sensors</td><td>Actuators</td><td>Actions</td></tr>
+        </thead>
+        <tbody>
+            @foreach (var b in FilteredDevices)
+            {
+                <tr  @onclick="() => Toggle(b.Id)" style="cursor: pointer">
+                    <td>@b.Id</td>
+                    <td>@b.HardwareId</td>
+                    <td><span class="badge rounded-pill @StatusClass(b.Status)">@b.Status</span></td>
+                    <td>@b.FirmwareVersion</td>
+                    <td>@b.LastSeenAt</td>
+                    <td>@b.CredentialsIssuedAt</td>
+                    <td>@b.Sensors.Count</td>
+                    <td>@b.Actuators.Count</td>
+                    <td>
+                        <div class="d-flex gap-2 mb-3">
+                            <button class="btn btn-sm btn-outline-success" @onclick="() => GenerateToken(b.Id)">Generate token</button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => Reject(b.Id)">Reject</button>
+                        </div>
+                    </td>
+                </tr>
+
+                @if(expandedId == b.Id){
+<tr>
+                        <td colspan ="8">
+ @if(b.Sensors.Count > 0){
+                            <table class="table">
+                            <thead>
+                                <tr><th>Id</th><th>Channel</th><th>SensorTypeId</th><th>CalibrationOffset</th><th>ChannelStatus</th><th>Buttons</th></tr>
+                            </thead>
+                            <tbody>
+
+
+
+                            @foreach (var s in b.Sensors)
+                            {
+                            <tr>
+                                <td>@s.Id</td>
+                                <td>@s.Channel</td>
+                                <td>@s.SensorTypeId</td>
+                                <td>@s.CalibrationOffset</td>
+                                <td><span class="badge rounded-pill @ChannelStatusClass(s.ChannelStatus)">@s.ChannelStatus</span></td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-success" @onclick=" () => SetSensorStatus(s.Id,ChannelStatus.Active)">Approve</button>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick=" () => SetSensorStatus(s.Id,ChannelStatus.Declined)">Decline</button>
+                                </td>
+                            </tr>
+                            }
+
+                            </tbody>
+                            </table>
+}
+
+
+
+
+@if(b.Actuators.Count > 0){
+                            <table class="table">
+                            <thead>
+                                <tr><th>Id</th><th>Channel</th><th>Kind</th><th>ChannelStatus</th><th>Buttons</th></tr>
+                            </thead>
+                            <tbody>
+
+                            @foreach (var s in b.Actuators)
+                            {
+                            <tr>
+                                <td>@s.Id</td>
+                                <td>@s.Channel</td>
+                                <td>@s.Kind</td>
+                                <td><span class="badge rounded-pill @ChannelStatusClass(s.ChannelStatus)">@s.ChannelStatus</span></td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-success" @onclick=" () => SetActuatorStatus(s.Id,ChannelStatus.Active)">Approve</button>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick=" () => SetActuatorStatus(s.Id,ChannelStatus.Declined)">Decline</button>
+                                </td>
+                            </tr>
+                            }
+
+                            </tbody>
+                            </table>
+                            }
+                        </td>
+
+</tr>
+                }
+
+            }
+        </tbody>
+    </table>
+    @if(message is not null){
+    <div class="alert alert-info">@message</div>
+    }
+}
+
+
+
+@code {
+    private List<DeviceWeb>? devices;
+    private int? expandedId;
+    private string? message;
+
+    private void Toggle(int id){
+        expandedId = expandedId == id ? null : id;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDevices();
+
+    }
+
+    private static string StatusClass(DeviceStatus status) => status switch{
+        DeviceStatus.Approved =>"text-bg-success",
+        DeviceStatus.Pending =>"text-bg-warning",
+        DeviceStatus.Rejected =>"text-bg-danger",
+        DeviceStatus.Disabled =>"text-bg-secondary",
+
+        _ =>"text-bg-light"
+    };
+    private async Task Reject(int id){
+        var api = HttpFactory.CreateClient("Api");
+        var response = await api.PostAsync($"api/v1/devices/{id}/reject",null);
+
+        if(response.IsSuccessStatusCode){
+            message = "Device was rejected.";
+            await LoadDevices();
+            }else{
+                var body = await response.Content.ReadAsStringAsync();
+                message = $"Error {(int)response.StatusCode}: {body}";
+                }
+        }
+
+        private async Task GenerateToken(int id){
+            var api = HttpFactory.CreateClient("Api");
+            var response = await api.PostAsync($"api/v1/devices/{id}/generateclaimtoken",null);
+
+            if(response.IsSuccessStatusCode){
+                message = "Token Generated.";
+                await LoadDevices();
+                }else{
+                    var body = await response.Content.ReadAsStringAsync();
+                    message = $"Error {(int)response.StatusCode}: {body}";
+                    }
+            }
+    private static string ChannelStatusClass(ChannelStatus status) => status switch{
+        ChannelStatus.Active =>"text-bg-success",
+        ChannelStatus.Pending =>"text-bg-warning",
+        ChannelStatus.Inactive =>"text-bg-danger",
+        ChannelStatus.Declined =>"text-bg-secondary",
+
+        _ =>"text-bg-light"
+    };
+
+    private async Task SetSensorStatus(int sensorId,ChannelStatus status){
+        var api = HttpFactory.CreateClient("Api");
+        var response = await api.PatchAsJsonAsync($"api/v1/sensors/{sensorId}", new UpdateChannelRequest{Status = status}, ApiJson.Options);
+
+
+        if(response.IsSuccessStatusCode){
+            message = "Channel Approved.";
+            await LoadDevices();
+        }else{
+            var body = await response.Content.ReadAsStringAsync();
+            message = $"Error {(int)response.StatusCode}: {body}";
+            }
+
+    }
+
+    private async Task SetActuatorStatus(int actuatorId,ChannelStatus status){
+        var api = HttpFactory.CreateClient("Api");
+        var response = await api.PatchAsJsonAsync($"api/v1/actuators/{actuatorId}", new UpdateChannelRequest{Status = status}, ApiJson.Options);
+
+
+        if(response.IsSuccessStatusCode){
+            message = "Channel Approved.";
+            await LoadDevices();
+        }else{
+            var body = await response.Content.ReadAsStringAsync();
+            message = $"Error {(int)response.StatusCode}: {body}";
+            }
+
+    }
+
+    private async Task LoadDevices(){
+    var api = HttpFactory.CreateClient("Api");
+    devices = await api.GetFromJsonAsync<List<DeviceWeb>>("api/v1/devices",ApiJson.Options);
+    }
+
+    [SupplyParameterFromQuery]
+    private string? NameFilter { get; set; }
+
+    private IEnumerable<DeviceWeb> FilteredDevices =>
+        devices?.Where(m => m.HardwareId.Contains(NameFilter ?? string.Empty,StringComparison.OrdinalIgnoreCase)&& (m.Status == DeviceStatus.Pending|| (m.Status == DeviceStatus.Approved && m.Sensors.Any(s => s.ChannelStatus == ChannelStatus.Pending)))) ?? [];
+
+}

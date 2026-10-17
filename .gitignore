@@ -494,3 +494,6 @@ docker/mosquitto/data/
 .claude/
 ruvector.db
 .obsidian
+
+# Lokální simulátor zařízení (jen pro testování, není v repozitáři)
+simulator/

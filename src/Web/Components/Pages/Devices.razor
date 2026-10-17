@@ -2,6 +2,7 @@
 @using Web.Models
 @using Domain
 @inject IHttpClientFactory HttpFactory
+@inject IConfiguration Config
 @rendermode InteractiveServer
 
 
@@ -24,12 +25,12 @@ else
 <span class="badge rounded-pill text-bg-secondary">@devices.Count</span>
     <table class="table">
         <thead>
-            <tr><th>Id</th><th>HardwareId</th><th>Status</th><td>FirmwareVersion</td><td>LastSeenAt</td><td>CredentialsIssuedAt</td><td>Room</td><td>Link</td></tr>
+            <tr><th>Id</th><th>HardwareId</th><th>Status</th><th>FirmwareVersion</th><th>LastSeenAt</th><th>CredentialsIssuedAt</th><th>Room</th><th>Link</th><th>Actions</th> </tr>
         </thead>
         <tbody>
             @foreach (var b in FilteredDevices)
             {
-                <tr>
+                <tr @onclick="() => Toggle(b.Id)" style="cursor: pointer">
                     <td>@b.Id</td>
                     <td>@b.HardwareId</td>
                     <td><span class="badge rounded-pill @StatusClass(b.Status)">@b.Status</span></td>
@@ -37,22 +38,118 @@ else
                     <td>@b.LastSeenAt</td>
                     <td>@b.CredentialsIssuedAt</td>
                     <td>@b.Room</td>
-                    <td><a href="devices/@b.Id/sensors">Sensors</a>|<a href="devices/@b.Id/actuators">Actuators</a></td>
+                    <td><a href="@GetUrl(b.Id)"  @onclick:stopPropagation="true" target="_blank">Measurments</a></td>
+                    <td>
+                    @if(b.Status == DeviceStatus.Approved){
+                    <div class="d-flex gap-2 mb-3">
+                        <button class="btn btn-sm btn-outline-secondary" @onclick:stopPropagation="true" @onclick="() => UpdateDeviceStatusToDisabled(b.Id)">Disable</button>
+                    </div>
+                    }
+
+                    @if(b.Status == DeviceStatus.Rejected){
+                    <div class="d-flex gap-2 mb-3">
+                        <button class="btn btn-sm btn-outline-warning" @onclick:stopPropagation="true" @onclick="() => UpdateDeviceStatusToPending(b.Id)">Restore</button>
+                    </div>
+                    }
+
+                    @if(b.Status == DeviceStatus.Disabled){
+                    <div class="d-flex gap-2 mb-3">
+                        <button class="btn btn-sm btn-outline-warning" @onclick:stopPropagation="true" @onclick="() => UpdateDeviceStatusToApproved(b.Id)">Enable</button>
+                    </div>
+                    }
+                     </td>
                 </tr>
+                @if(expandedId == b.Id){
+<tr>
+                        <td colspan ="9">
+ @if(b.Sensors.Count > 0){
+                            <table class="table">
+                            <thead>
+                                <tr><th>Id</th><th>Channel</th><th>SensorTypeId</th><th>CalibrationOffset</th><th>ChannelStatus</th><th>Buttons</th></tr>
+                            </thead>
+                            <tbody>
+
+
+
+                            @foreach (var s in b.Sensors)
+                            {
+                            <tr>
+                                <td>@s.Id</td>
+                                <td>@s.Channel</td>
+                                <td>@s.SensorTypeId</td>
+                                <td>@s.CalibrationOffset</td>
+                                <td><span class="badge rounded-pill @ChannelStatusClass(s.ChannelStatus)">@s.ChannelStatus</span></td>
+                                <td>
+                                    @if(s.ChannelStatus != ChannelStatus.Active && s.ChannelStatus != ChannelStatus.Inactive ){
+                                    <button class="btn btn-sm btn-outline-success" @onclick=" () => SetSensorStatus(s.Id,ChannelStatus.Active)">Approve</button>
+                                    }
+                                    @if(s.ChannelStatus != ChannelStatus.Declined && s.ChannelStatus != ChannelStatus.Inactive ){
+                                    <button class="btn btn-sm btn-outline-danger" @onclick=" () => SetSensorStatus(s.Id,ChannelStatus.Declined)">Decline</button>
+                                    }
+                                </td>
+                            </tr>
+                            }
+
+                            </tbody>
+                            </table>
+                            }
+
+                            @if(b.Actuators.Count > 0){
+                                                        <table class="table">
+                                                        <thead>
+                                                            <tr><th>Id</th><th>Channel</th><th>Kind</th><th>ChannelStatus</th><th>Buttons</th></tr>
+                                                        </thead>
+                                                        <tbody>
+
+                                                        @foreach (var s in b.Actuators)
+                                                        {
+                                                        <tr>
+                                                            <td>@s.Id</td>
+                                                            <td>@s.Channel</td>
+                                                            <td>@s.Kind</td>
+                                                            <td><span class="badge rounded-pill @ChannelStatusClass(s.ChannelStatus)">@s.ChannelStatus</span></td>
+                                                            <td>
+                                                                @if(s.ChannelStatus != ChannelStatus.Active && s.ChannelStatus != ChannelStatus.Inactive ){
+                                                                <button class="btn btn-sm btn-outline-success" @onclick=" () => SetActuatorStatus(s.Id,ChannelStatus.Active)">Approve</button>
+                                                                }
+                                                                @if(s.ChannelStatus != ChannelStatus.Declined && s.ChannelStatus != ChannelStatus.Inactive ){
+                                                                <button class="btn btn-sm btn-outline-danger" @onclick=" () => SetActuatorStatus(s.Id,ChannelStatus.Declined)">Decline</button>
+                                                                }
+                                                            </td>GF_AUTH_ANONYMOUS_ENABLED=true
+                                                        </tr>
+                                                        }
+
+                                                        </tbody>
+                                                        </table>
+                                                        }
+                                                    </td>
+
+                            </tr>
+}
+
+
             }
         </tbody>
     </table>
+    @if(message is not null){
+    <div class="alert alert-info">@message</div>
+    }
 }
 
 
 
 @code {
     private List<DeviceWeb>? devices;
+    private int? expandedId;
+    private string? message;
+
+    private void Toggle(int id){
+        expandedId = expandedId == id ? null : id;
+    }
 
     protected override async Task OnInitializedAsync()
     {
-        var api = HttpFactory.CreateClient("Api");
-        devices = await api.GetFromJsonAsync<List<DeviceWeb>>("api/v1/devices",ApiJson.Options);
+        await LoadDevices();
     }
 
     private static string StatusClass(DeviceStatus status) => status switch{
@@ -64,8 +161,105 @@ else
         _ =>"text-bg-light"
     };
 
+    private static string ChannelStatusClass(ChannelStatus status) => status switch{
+        ChannelStatus.Active =>"text-bg-success",
+        ChannelStatus.Pending =>"text-bg-warning",
+        ChannelStatus.Inactive =>"text-bg-danger",
+        ChannelStatus.Declined =>"text-bg-secondary",
+
+        _ =>"text-bg-light"
+    };
+    private async Task SetSensorStatus(int sensorId,ChannelStatus status){
+        var api = HttpFactory.CreateClient("Api");
+        var response = await api.PatchAsJsonAsync($"api/v1/sensors/{sensorId}", new UpdateChannelRequest{Status = status}, ApiJson.Options);
+
+
+        if(response.IsSuccessStatusCode){
+            message = "Channel Updated.";
+            await LoadDevices();
+        }else{
+            var body = await response.Content.ReadAsStringAsync();
+            message = $"Error {(int)response.StatusCode}: {body}";
+            }
+
+    }
+
+    private async Task SetActuatorStatus(int actuatorId,ChannelStatus status){
+        var api = HttpFactory.CreateClient("Api");
+        var response = await api.PatchAsJsonAsync($"api/v1/actuators/{actuatorId}", new UpdateChannelRequest{Status = status}, ApiJson.Options);
+
+
+        if(response.IsSuccessStatusCode){
+            message = "Channel Updated.";
+            await LoadDevices();
+        }else{
+            var body = await response.Content.ReadAsStringAsync();
+            message = $"Error {(int)response.StatusCode}: {body}";
+            }
+
+    }
+
+
+
+        private async Task UpdateDeviceStatusToPending(int deviceId){
+            var api = HttpFactory.CreateClient("Api");
+            var response = await api.PostAsync($"api/v1/devices/{deviceId}/restore", null);
+
+
+            if(response.IsSuccessStatusCode){
+                message = "Device Restored.";
+                await LoadDevices();
+            }else{
+                var body = await response.Content.ReadAsStringAsync();
+                message = $"Error {(int)response.StatusCode}: {body}";
+                }
+
+        }
+
+
+        private string GetUrl(int deviceId){
+        return $"{Config["Grafana:DeviceDashboardUrl"]}?var-device={deviceId}&var-channel=$__all&from=now-24h&to=now";
+        }
+
+
+        private async Task UpdateDeviceStatusToApproved(int deviceId){
+            var api = HttpFactory.CreateClient("Api");
+            var response = await api.PostAsync($"api/v1/devices/{deviceId}/enable", null);
+
+
+            if(response.IsSuccessStatusCode){
+                message = "Device Enabled.";
+                await LoadDevices();
+            }else{
+                var body = await response.Content.ReadAsStringAsync();
+                message = $"Error {(int)response.StatusCode}: {body}";
+                }
+
+        }
+
+        private async Task UpdateDeviceStatusToDisabled(int deviceId){
+            var api = HttpFactory.CreateClient("Api");
+            var response = await api.PostAsync($"api/v1/devices/{deviceId}/disable", null);
+
+
+            if(response.IsSuccessStatusCode){
+                message = "Device Disable.";
+                await LoadDevices();
+            }else{
+                var body = await response.Content.ReadAsStringAsync();
+                message = $"Error {(int)response.StatusCode}: {body}";
+                }
+
+        }
+
     [SupplyParameterFromQuery]
     private string? NameFilter { get; set; }
+
+
+    private async Task LoadDevices(){
+    var api = HttpFactory.CreateClient("Api");
+    devices = await api.GetFromJsonAsync<List<DeviceWeb>>("api/v1/devices",ApiJson.Options);
+    }
 
     private IEnumerable<DeviceWeb> FilteredDevices =>
         devices?.Where(m => m.HardwareId.Contains(NameFilter ?? string.Empty,StringComparison.OrdinalIgnoreCase)) ?? [];
