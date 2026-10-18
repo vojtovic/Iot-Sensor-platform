@@ -99,6 +99,8 @@ app.GetBuildingRooms();
 app.UpdateDeviceStatusToPending();
 app.UpdateDeviceStatusToApproved();
 app.ApproveDevice();
+app.AddSensorTypes();
+app.GetSensorsTypes();
 
 
 app.MapGet("/", () => "Hello World!");
