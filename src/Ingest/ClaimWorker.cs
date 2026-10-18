@@ -31,19 +31,19 @@ public class ClaimWorker(IMqttBus bus, ILogger<ClaimWorker> logger, IServiceScop
         {
             using var scope = scopeFactory.CreateScope();
             var claimService = scope.ServiceProvider.GetRequiredService<IClaimService>();
-            logger.LogInformation("Zpráva z {Topic}: {Payload}", msg.Topic, msg.Payload);
+            logger.LogInformation("Message from {Topic}: ", msg.Topic);
             ClaimRequestMessage? jsonPayload = null;
             try
             {
                 jsonPayload = JsonSerializer.Deserialize<ClaimRequestMessage>(msg.Payload, JsonOptionsRead);
                 if (jsonPayload is null)
                 {
-                    logger.LogWarning("Prázdná zpráva z {Topic}", msg.Topic);
+                    logger.LogWarning("Empty message from {Topic}", msg.Topic);
                     return;
                 }
 
-                logger.LogInformation("Čas: {Ts}, HardwareId: {HardwareId}, ClaimToken: {ClaimToken}, FirmwareVersion: {FirmwareVersion}",
-                    jsonPayload.Ts, jsonPayload.HardwareId, jsonPayload.ClaimToken, jsonPayload.FirmwareVersion);
+                logger.LogInformation("Time: {Ts}, HardwareId: {HardwareId}, HasClaimToken: {HasClaimToken}, FirmwareVersion: {FirmwareVersion}",
+                    jsonPayload.Ts, jsonPayload.HardwareId, (jsonPayload.ClaimToken is not null), jsonPayload.FirmwareVersion);
 
 
                 if (jsonPayload.Sensors != null)

@@ -40,6 +40,11 @@ else
                     <td>@b.Actuators.Count</td>
                     <td>
                         <div class="d-flex gap-2 mb-3">
+                            @if(b.Status == DeviceStatus.Pending){
+
+
+                            <button class="btn btn-sm btn-outline-success" @onclick:stopPropagation="true" @onclick="() => Approve(b.Id)">Approve</button>
+                            }
                             <button class="btn btn-sm btn-outline-success" @onclick:stopPropagation="true" @onclick="() => GenerateToken(b.Id)">Generate token</button>
                             <button class="btn btn-sm btn-outline-danger" @onclick:stopPropagation="true" @onclick="() => Reject(b.Id)">Reject</button>
                         </div>
@@ -226,6 +231,19 @@ else
 
     }
 
+    private async Task Approve(int id){
+        var api = HttpFactory.CreateClient("Api");
+        var response = await api.PostAsync($"api/v1/devices/{id}/approved",null);
+
+        if(response.IsSuccessStatusCode){
+            message = "Device was marked approved. It will be approved shortly.";
+            await LoadDevices();
+            token = null;
+            }else{
+                var body = await response.Content.ReadAsStringAsync();
+                message = $"Error {(int)response.StatusCode}: {body}";
+                }
+        }
 
 
 

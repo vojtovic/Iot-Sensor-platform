@@ -64,6 +64,7 @@ services:
       - Mqtt__Password=${MQTT_BACKEND_PASSWORD:-backend-password}
       - Mqtt__Provisioner__Username=provisioner
       - Mqtt__Provisioner__Password=${MQTT_PROVISIONER_PASSWORD:-provisioner-password}
+      - Claim__GroupKey=${CLAIM_GROUP_KEY:-8c58c3e177ad0f0bfdc201a953a23d7455d18aa9d7c32bdc794ceda35cdb7ac4}
     ports:
       - "5047:8080"
     restart: unless-stopped

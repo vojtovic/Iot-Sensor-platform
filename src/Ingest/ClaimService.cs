@@ -1,5 +1,5 @@
 using Infrastructure.Messaging;
-using Microsoft.Extensions.Hosting;
+
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using Domain;
@@ -9,6 +9,8 @@ using Infrastructure.Persistence;
 using Infrastructure;
 using System.Net;
 using System.Threading.Channels;
+using System.Security.Cryptography;
+using System.Text;
 
 
 namespace Ingest;
@@ -23,7 +25,7 @@ public record DeviceCapabilities(IReadOnlyList<SensorDeclaration>? Sensors, IRea
 
 
 
-public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisioner, ILogger<ClaimService> logger) : IClaimService
+public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisioner, ILogger<ClaimService> logger, IDeviceKeyVerifier deviceKeyVerifier) : IClaimService
 {
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -39,7 +41,8 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
             Status = DeviceStatus.Pending,
             FirmwareVersion = request.FirmwareVersion,
             LastSeenAt = DateTimeOffset.UtcNow,
-            RoomId = null
+            RoomId = null,
+            DeviceSecret = request.ClaimToken is null || request.ClaimToken.Length >= 32 ? request.ClaimToken : null
         };
 
 
@@ -253,7 +256,18 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
             if (device is null)
             {
 
+
                 var AddDeviceOut = await AddDevice(appDbContext, request, logger, ct);
+                if (deviceKeyVerifier.Validate(request.HardwareId, request.ClaimToken))
+                {
+                    var device1 = await appDbContext.Devices.FirstOrDefaultAsync(d => d.HardwareId == request.HardwareId, ct);
+                    if (device1 is not null)
+                    {
+                        logger.LogInformation($"Device {device1.HardwareId} auto approved by device key");
+                        return await ApproveAsync(device1, request, ct);
+                    }
+                }
+
                 logger.LogInformation("Unknown device {Device}, registered as pending", request.HardwareId);
                 if (AddDeviceOut is null)
                 {
@@ -266,10 +280,36 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
             }
             device.LastSeenAt = DateTimeOffset.UtcNow;
             device.FirmwareVersion = request.FirmwareVersion;
+
+
+
+            bool tokenValid = (device.ClaimToken is not null && device.ClaimToken == request.ClaimToken) || deviceKeyVerifier.Validate(request.HardwareId, request.ClaimToken);
+            bool secretValid;
+            if (request.ClaimToken is not null && device.DeviceSecret is not null)
+            {
+                var BytesDeviceSecrets = Encoding.UTF8.GetBytes(device.DeviceSecret);
+                var BytesClaimToken = Encoding.UTF8.GetBytes(request.ClaimToken);
+                secretValid = (CryptographicOperations.FixedTimeEquals(BytesDeviceSecrets, BytesClaimToken));
+            }
+            else
+            {
+                secretValid = false;
+            }
+
+            if (device.Status == DeviceStatus.Pending && !tokenValid && !secretValid && secretValid == false && request.ClaimToken is not null)
+            {
+                if (device.DeviceSecret is null && request.ClaimToken is not null && request.ClaimToken.Length >= 32)
+                {
+                    device.DeviceSecret = request.ClaimToken;
+                }
+                else if (device.DeviceSecret is not null && !secretValid)
+                {
+                    logger.LogWarning("Device {Device} send difrent secret", device.HardwareId);
+                }
+
+
+            }
             await appDbContext.SaveChangesAsync(ct);
-
-
-            bool tokenValid = device.ClaimToken is not null && device.ClaimToken == request.ClaimToken;
             if (device.Status == DeviceStatus.Rejected || device.Status == DeviceStatus.Disabled)
             {
                 return Rejected("Device Rejected or Disabled");
@@ -288,9 +328,10 @@ public class ClaimService(AppDbContext appDbContext, IDeviceProvisioner provisio
             {
                 DeviceStatus.Pending when tokenValid => await ApproveAsync(device, request, ct),
                 DeviceStatus.Pending when !tokenValid => Pending("Waiting for operator approval.", 5),
-                DeviceStatus.Approved when tokenValid => await ReissueCredentialsAsync(request, device, ct),
-                DeviceStatus.Approved when !tokenValid => Pending("Device is already approved. A valid claim token is required to issue credentials.", 5),
+                DeviceStatus.Approved when tokenValid || secretValid => await ReissueCredentialsAsync(request, device, ct),
+                DeviceStatus.Approved when !tokenValid && !secretValid => Pending("Device is already approved. A valid claim token is required to issue credentials.", 5),
                 DeviceStatus.Rejected or DeviceStatus.Disabled => Rejected("Device has been rejected or disabled by the operator."),
+
                 _ => Rejected("Unexpected device state.")
             };
 

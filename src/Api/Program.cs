@@ -41,6 +41,11 @@ builder.Services.AddSingleton<ITimestampResolver>(_ => new TimestampResolver(
     )
 ));
 
+builder.Services.AddSingleton<IDeviceKeyVerifier>(_ => new DeviceKeyVerifier(
+    (
+            builder.Configuration["Claim:GroupKey"]!
+    )
+));
 
 
 builder.Services.AddHostedService<ClaimWorker>();
@@ -93,6 +98,7 @@ app.AddRoom();
 app.GetBuildingRooms();
 app.UpdateDeviceStatusToPending();
 app.UpdateDeviceStatusToApproved();
+app.ApproveDevice();
 
 
 app.MapGet("/", () => "Hello World!");

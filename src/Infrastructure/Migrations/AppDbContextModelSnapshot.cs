@@ -147,6 +147,10 @@ namespace Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("credentials_issued_at");
 
+                    b.Property<string>("DeviceSecret")
+                        .HasColumnType("text")
+                        .HasColumnName("device_secret");
+
                     b.Property<string>("FirmwareVersion")
                         .HasColumnType("text")
                         .HasColumnName("firmware_version");

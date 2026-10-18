@@ -468,5 +468,45 @@ namespace api.Endpoints
                 }
             );
         }
+
+        public static void ApproveDevice(this WebApplication app)
+        {
+            var appRoute = app.MapGroup("/api/v1");
+            appRoute.MapPost(
+                "/devices/{id}/approved",
+                async (AppDbContext iot, int id, CancellationToken ct) =>
+                {
+                    var device = await iot
+                        .Devices.Include(d => d.Room)
+                        .Include(d => d.Sensors)
+                        .Include(d => d.Actuators)
+                        .FirstOrDefaultAsync(d => d.Id == id, ct);
+
+                    if (device is null)
+                    {
+                        return Results.NotFound();
+                    }
+                    if (device.Status != DeviceStatus.Pending)
+                    {
+                        return Results.Conflict(new { message = "Device has to be Pending" });
+                    }
+                    if (device.DeviceSecret is null)
+                    {
+                        return Results.Conflict(new { message = "Device has no secret (old firmware), use generate token" });
+                    }
+
+                    device.ClaimToken = device.DeviceSecret;
+                    await iot.SaveChangesAsync(ct);
+
+
+                    return Results.Ok(new { message = "Device Approved" });
+                }
+            );
+        }
+
+
+
+
+
     }
 }

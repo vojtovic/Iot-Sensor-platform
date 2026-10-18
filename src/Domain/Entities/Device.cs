@@ -13,4 +13,5 @@ public class Device
     public ICollection<Sensor> Sensors { get; set; } = new List<Sensor>();
     public ICollection<Actuator> Actuators { get; set; } = new List<Actuator>();
     public string? ClaimToken { get; set; }
+    public string? DeviceSecret { get; set; }
 }
