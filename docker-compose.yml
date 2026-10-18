@@ -1,36 +1,86 @@
 volumes:
   timescaledb:
-    external: false
   mosquitto-data:
-    external: false
   grafana-data:
-    external: false
-
 
 services:
   timescaledb:
     image: timescale/timescaledb-ha:pg18
     volumes:
       - timescaledb:/home/postgres/pgdata/data
+      - ./docker/postgres/10-grafana-user.sh:/docker-entrypoint-initdb.d/100-grafana-user.sh:ro
     environment:
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=timescaledb_iot
+      - GRAFANA_DB_PASSWORD=${GRAFANA_DB_PASSWORD:-grafana}
     ports:
-      - 5432:5432
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d timescaledb_iot"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
 
   mosquitto:
     image: eclipse-mosquitto:2
     volumes:
-      - type: bind
-        source: ./docker/mosquitto/config/
-        target: /mosquitto/config/
-      - type: volume
-        source: mosquitto-data
-        target: /mosquitto/data/
+      - ./docker/mosquitto/config/:/mosquitto/config/:ro
+      - mosquitto-data:/mosquitto/data/
     ports:
       - "1883:1883"
     environment:
-      - MOSQUITTO_DYNSEC_PASSWORD=${MOSQUITTO_DYNSEC_PASSWORD}
+
+      - MOSQUITTO_DYNSEC_PASSWORD=${MOSQUITTO_DYNSEC_PASSWORD:-dynsec-admin-password}
+
+
+  mosquitto-init:
+    image: eclipse-mosquitto:2
+    depends_on:
+      - mosquitto
+    volumes:
+      - ./docker/mosquitto/init/:/init/:ro
+    entrypoint: ["sh", "/init/init-dynsec.sh"]
+    environment:
+      - MOSQUITTO_DYNSEC_PASSWORD=${MOSQUITTO_DYNSEC_PASSWORD:-dynsec-admin-password}
+      - MQTT_BACKEND_PASSWORD=${MQTT_BACKEND_PASSWORD:-backend-password}
+      - MQTT_PROVISIONER_PASSWORD=${MQTT_PROVISIONER_PASSWORD:-provisioner-password}
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: src/Api/Dockerfile
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      mosquitto-init:
+        condition: service_completed_successfully
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__iot=Host=timescaledb;Port=5432;Database=timescaledb_iot;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+      - Mqtt__Host=mosquitto
+      - Mqtt__Port=1883
+      - Mqtt__Username=backend-api
+      - Mqtt__Password=${MQTT_BACKEND_PASSWORD:-backend-password}
+      - Mqtt__Provisioner__Username=provisioner
+      - Mqtt__Provisioner__Password=${MQTT_PROVISIONER_PASSWORD:-provisioner-password}
+    ports:
+      - "5047:8080"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: src/Web/Dockerfile
+    depends_on:
+      - api
+    environment:
+      - Api__BaseUrl=http://api:8080/
+
+      - Grafana__DeviceDashboardUrl=http://localhost:3000/d/device-measurements
+    ports:
+      - "5235:8080"
+    restart: unless-stopped
 
   grafana:
     image: grafana/grafana:13.2.2
@@ -41,8 +91,9 @@ services:
       - ./docker/grafana/provisioning/:/etc/grafana/provisioning/
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GRAFANA_DB_PASSWORD=${GRAFANA_DB_PASSWORD}
+      - GRAFANA_DB_PASSWORD=${GRAFANA_DB_PASSWORD:-grafana}
       - GF_AUTH_ANONYMOUS_ENABLED=true
     depends_on:
-      - timescaledb
+      timescaledb:
+        condition: service_healthy
     restart: unless-stopped

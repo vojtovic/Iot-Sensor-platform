@@ -1,6 +1,7 @@
 apiVersion: 1
 datasources:
   - name: Postgres
+    uid: timescaledb
     type: postgres
     url: timescaledb:5432
     user: grafana

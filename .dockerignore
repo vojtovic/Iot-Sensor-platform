@@ -1,0 +1,8 @@
+**/bin/
+**/obj/
+**/*.db
+.git/
+docs/
+simulator/
+docker/
+tests/

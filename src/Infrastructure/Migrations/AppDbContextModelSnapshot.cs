@@ -362,7 +362,7 @@ namespace Infrastructure.Migrations
             modelBuilder.Entity("Domain.Actuator", b =>
                 {
                     b.HasOne("Domain.Device", "Device")
-                        .WithMany()
+                        .WithMany("Actuators")
                         .HasForeignKey("DeviceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
@@ -452,6 +452,8 @@ namespace Infrastructure.Migrations
 
             modelBuilder.Entity("Domain.Device", b =>
                 {
+                    b.Navigation("Actuators");
+
                     b.Navigation("Sensors");
                 });
 #pragma warning restore 612, 618

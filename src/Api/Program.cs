@@ -40,6 +40,9 @@ builder.Services.AddSingleton<ITimestampResolver>(_ => new TimestampResolver(
         )
     )
 ));
+
+
+
 builder.Services.AddHostedService<ClaimWorker>();
 builder.Services.AddScoped<IClaimService, ClaimService>();
 builder.Services.AddSingleton<IDeviceProvisioner>(_ => new DeviceProvisioner(
@@ -60,6 +63,11 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 builder.Services.AddOpenApi();
 var app = builder.Build();
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+}
 
 if (app.Environment.IsDevelopment())
 {
@@ -85,6 +93,7 @@ app.AddRoom();
 app.GetBuildingRooms();
 app.UpdateDeviceStatusToPending();
 app.UpdateDeviceStatusToApproved();
+
 
 app.MapGet("/", () => "Hello World!");
 
