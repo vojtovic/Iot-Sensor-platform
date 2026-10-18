@@ -40,11 +40,13 @@ else
                     <td>@b.Actuators.Count</td>
                     <td>
                         <div class="d-flex gap-2 mb-3">
-                            <button class="btn btn-sm btn-outline-success" @onclick="() => GenerateToken(b.Id)">Generate token</button>
-                            <button class="btn btn-sm btn-outline-danger" @onclick="() => Reject(b.Id)">Reject</button>
+                            <button class="btn btn-sm btn-outline-success" @onclick:stopPropagation="true" @onclick="() => GenerateToken(b.Id)">Generate token</button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick:stopPropagation="true" @onclick="() => Reject(b.Id)">Reject</button>
                         </div>
                     </td>
                 </tr>
+
+
 
                 @if(expandedId == b.Id){
 <tr>
@@ -67,8 +69,12 @@ else
                                 <td>@s.CalibrationOffset</td>
                                 <td><span class="badge rounded-pill @ChannelStatusClass(s.ChannelStatus)">@s.ChannelStatus</span></td>
                                 <td>
+                                    @if(s.ChannelStatus != ChannelStatus.Active && s.ChannelStatus != ChannelStatus.Inactive ){
                                     <button class="btn btn-sm btn-outline-success" @onclick=" () => SetSensorStatus(s.Id,ChannelStatus.Active)">Approve</button>
+                                    }
+                                    @if(s.ChannelStatus != ChannelStatus.Declined && s.ChannelStatus != ChannelStatus.Inactive ){
                                     <button class="btn btn-sm btn-outline-danger" @onclick=" () => SetSensorStatus(s.Id,ChannelStatus.Declined)">Decline</button>
+                                    }
                                 </td>
                             </tr>
                             }
@@ -95,8 +101,12 @@ else
                                 <td>@s.Kind</td>
                                 <td><span class="badge rounded-pill @ChannelStatusClass(s.ChannelStatus)">@s.ChannelStatus</span></td>
                                 <td>
+                                    @if(s.ChannelStatus != ChannelStatus.Active && s.ChannelStatus != ChannelStatus.Inactive ){
                                     <button class="btn btn-sm btn-outline-success" @onclick=" () => SetActuatorStatus(s.Id,ChannelStatus.Active)">Approve</button>
+                                    }
+                                    @if(s.ChannelStatus != ChannelStatus.Declined && s.ChannelStatus != ChannelStatus.Inactive ){
                                     <button class="btn btn-sm btn-outline-danger" @onclick=" () => SetActuatorStatus(s.Id,ChannelStatus.Declined)">Decline</button>
+                                    }
                                 </td>
                             </tr>
                             }
@@ -112,6 +122,13 @@ else
             }
         </tbody>
     </table>
+@if(token is not null){
+<div class="alert alert-success">
+    Token for <strong>@token.HardwareId</strong>:
+    <code class ="user-select-all">@token.ClaimToken</code>
+</div>
+}
+
     @if(message is not null){
     <div class="alert alert-info">@message</div>
     }
@@ -123,6 +140,7 @@ else
     private List<DeviceWeb>? devices;
     private int? expandedId;
     private string? message;
+    private ClaimTokenWeb? token;
 
     private void Toggle(int id){
         expandedId = expandedId == id ? null : id;
@@ -160,12 +178,14 @@ else
             var response = await api.PostAsync($"api/v1/devices/{id}/generateclaimtoken",null);
 
             if(response.IsSuccessStatusCode){
-                message = "Token Generated.";
+             token = await response.Content.ReadFromJsonAsync<ClaimTokenWeb>(ApiJson.Options);
+                message = "Token Generated";
                 await LoadDevices();
                 }else{
                     var body = await response.Content.ReadAsStringAsync();
                     message = $"Error {(int)response.StatusCode}: {body}";
                     }
+
             }
     private static string ChannelStatusClass(ChannelStatus status) => status switch{
         ChannelStatus.Active =>"text-bg-success",
@@ -205,6 +225,12 @@ else
             }
 
     }
+
+
+
+
+
+
 
     private async Task LoadDevices(){
     var api = HttpFactory.CreateClient("Api");
