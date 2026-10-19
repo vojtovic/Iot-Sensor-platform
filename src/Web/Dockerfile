@@ -9,7 +9,7 @@ RUN dotnet restore src/Web/Web.csproj
 
 
 COPY src/ src/
-RUN dotnet publish src/Web/Web.csproj -c Release -o /app --no-restore
+RUN dotnet publish src/Web/Web.csproj -c Release -o /app
 
 
 
