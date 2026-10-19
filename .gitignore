@@ -497,3 +497,6 @@ ruvector.db
 
 
 simulator/
+
+# old telemetry simulator, replaced by github.com/vojtovic/iot-examples
+src/Simulator/
