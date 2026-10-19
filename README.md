@@ -20,7 +20,30 @@ IoT system for Acquisition, Transmission, and Storage of Sensor Data in Indoor E
 </div>
 
 
-**Ports:** 1883 (MQTT), 5432 (PostgreSQL), 3000 (Grafana - `admin` /  `admin`)
+
+## How to run it
+ requirements: Docker (Docker Desktop for Win/mac-OS), Git
+
+  ```sh
+  git clone https://github.com/vojtovic/Iot-Sensor-platform.git
+  cd Iot-Sensor-platform
+  docker compose up -d
+  ```
+First start may take few minutes.
+
+| Service | URL | Note |
+|---|---|---|
+| Test client (UI) | http://localhost:5235 | devices, claims, sensor types |
+| API documentation | http://localhost:5047/scalar/v1 | REST API (Scalar) |
+| Grafana | http://localhost:3000 | view without login, admin: `admin` / `admin` |
+| MQTT broker | `localhost:1883` | for devices |
+| PostgreSQL / TimescaleDB | `localhost:5432` | database `timescaledb_iot` |
+
+You can find example code for ESP32 device and simulator in this repository: https://github.com/vojtovic/iot-examples.git. 
+
+*Note: iot-examples are AI-generated code intended to speed up development.*
+
+
 
 ## Use of generative AI
 
