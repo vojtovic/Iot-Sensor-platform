@@ -23,18 +23,18 @@ public class TelemetryWorker(IMqttBus bus, ILogger<TelemetryWorker> logger, ISer
 
         await bus.SubscribeAsync("iot/v1/+/telemetry", async msg =>
         {
-            logger.LogInformation("Zpráva z {Topic}: {Payload}", msg.Topic, msg.Payload);
+            logger.LogInformation("Message from {Topic}: {Payload}", msg.Topic, msg.Payload);
             try
             {
                 var jsonPayload = JsonSerializer.Deserialize<TelemetryMessage>(msg.Payload, JsonOptions);
 
                 if (jsonPayload is null)
                 {
-                    logger.LogWarning("Prázdná zpráva z {Topic}", msg.Topic);
+                    logger.LogWarning("Empty message from {Topic}", msg.Topic);
                     return;
                 }
 
-                logger.LogInformation("Čas: {Ts}, seq: {Seq}, počet čtení: {Count}",
+                logger.LogInformation("Time: {Ts}, seq: {Seq}, read num: {Count}",
                     jsonPayload.Ts, jsonPayload.Seq, jsonPayload.Readings.Count);
 
                 string[] parts = msg.Topic.Split("/");
@@ -56,7 +56,7 @@ public class TelemetryWorker(IMqttBus bus, ILogger<TelemetryWorker> logger, ISer
             }
             catch (JsonException ex)
             {
-                logger.LogError(ex, " Nevalidní zpráva. {Topic}", msg.Topic);
+                logger.LogError(ex, " Inavalid message {Topic}", msg.Topic);
             }
             return;
 

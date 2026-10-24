@@ -49,7 +49,10 @@ builder.Services.AddSingleton<IDeviceKeyVerifier>(_ => new DeviceKeyVerifier(
 
 
 builder.Services.AddHostedService<ClaimWorker>();
+builder.Services.AddHostedService<RetainedWorker>();
+builder.Services.AddHostedService<ConfigWorker>();
 builder.Services.AddScoped<IClaimService, ClaimService>();
+builder.Services.AddSingleton<IConfigValidator, ConfigValidator>();
 builder.Services.AddSingleton<IDeviceProvisioner>(_ => new DeviceProvisioner(
     builder.Configuration["Mqtt:Host"]!,
     builder.Configuration["Mqtt:Provisioner:Username"]!,
@@ -101,6 +104,8 @@ app.UpdateDeviceStatusToApproved();
 app.ApproveDevice();
 app.AddSensorTypes();
 app.GetSensorsTypes();
+app.GetDeviceConfig();
+app.PutDeviceConfig();
 
 
 app.MapGet("/", () => "Hello World!");

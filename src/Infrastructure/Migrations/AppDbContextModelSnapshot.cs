@@ -222,8 +222,9 @@ namespace Infrastructure.Migrations
                     b.HasKey("Id")
                         .HasName("pk_device_configurations");
 
-                    b.HasIndex("DeviceId")
-                        .HasDatabaseName("ix_device_configurations_device_id");
+                    b.HasIndex("DeviceId", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("ix_device_configurations_device_id_version");
 
                     b.ToTable("device_configurations", (string)null);
                 });

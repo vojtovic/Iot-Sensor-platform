@@ -147,12 +147,14 @@ public class MqttBus : IMqttBus
         await _client.SubscribeAsync(subscribeOptions, ct);
 
     }
-    public async Task PublishAsync(string topic, string payload, CancellationToken ct)
+    public async Task PublishAsync(string topic, string payload, CancellationToken ct, bool retain = false)
     {
+        await EnsureConnectionAsync(ct);
         var message = new MqttApplicationMessageBuilder()
             .WithTopic(topic)
             .WithPayload(payload)
-            .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)   // QoS 1
+            .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)// QoS 1
+            .WithRetainFlag(retain)
             .Build();
 
         await _client.PublishAsync(message, ct);

@@ -16,21 +16,22 @@ until mosquitto_ctrl -h mosquitto -u admin -P "$MOSQUITTO_DYNSEC_PASSWORD" dynse
 done
 
 
-# Roles for Anonymus device for claim (%c = client id = claim token / hardwareId)
+
 ctl createRole claim
 ctl addRoleACL claim publishClientSend    iot/v1/claim/request          allow
 ctl addRoleACL claim publishClientReceive 'iot/v1/claim/response/%c'    allow
 ctl addRoleACL claim subscribePattern     'iot/v1/claim/response/%c'    allow
 
-# Roles for approving device (%u = username = hardwareId)
+
 ctl createRole device
 ctl addRoleACL device publishClientSend    'iot/v1/%u/telemetry' allow
 ctl addRoleACL device publishClientSend    'iot/v1/%u/status'    allow
 ctl addRoleACL device publishClientReceive 'iot/v1/%u/#'         allow
 ctl addRoleACL device subscribePattern     'iot/v1/%u/config'    allow
 ctl addRoleACL device subscribePattern     'iot/v1/%u/command'   allow
+ctl addRoleACL device publishClientSend     'iot/v1/%u/config/ack' allow
 
-# Roles for backend
+
 ctl createRole backend
 ctl addRoleACL backend publishClientSend    'iot/v1/+/config'          allow
 ctl addRoleACL backend publishClientSend    'iot/v1/+/command'         allow
@@ -39,6 +40,7 @@ ctl addRoleACL backend publishClientReceive 'iot/v1/#'                 allow
 ctl addRoleACL backend subscribeLiteral     iot/v1/claim/request       allow
 ctl addRoleACL backend subscribePattern     'iot/v1/+/telemetry'       allow
 ctl addRoleACL backend subscribePattern     'iot/v1/+/status'          allow
+ctl addRoleACL backend subscribePattern     'iot/v1/+/config/ack'      allow
 
 ctl createGroup devices
 ctl addGroupRole devices device

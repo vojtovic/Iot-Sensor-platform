@@ -31,6 +31,7 @@ public class AppDbContext : DbContext
                 .HasIndex(s => new { s.DeviceId, s.Channel })
                 .IsUnique();
 
+
         modelBuilder.Entity<Actuator>()
                 .HasIndex(s => new { s.DeviceId, s.Channel })
                 .IsUnique();
@@ -45,6 +46,10 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<DeviceConfiguration>()
                 .Property(c => c.Payload)
                 .HasColumnType("jsonb");
+
+        modelBuilder.Entity<DeviceConfiguration>()
+                .HasIndex(s => new { s.DeviceId, s.Version })
+                .IsUnique();
 
         modelBuilder.Entity<ActuatorCommand>()
                 .Property(c => c.Payload)
