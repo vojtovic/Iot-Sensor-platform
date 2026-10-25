@@ -1,0 +1,123 @@
+@page "/devices/{Id:int}/config"
+@using Web.Models
+@using Domain
+@inject IHttpClientFactory HttpFactory
+@rendermode InteractiveServer
+
+
+<PageTitle>Configs</PageTitle>
+<h1>Configs</h1>
+@if (message is not null)
+{
+    <div class="alert alert-info">@message</div>
+}
+else
+{
+
+
+    @if (config is null)
+    {
+    <p>loading…</p>
+    }
+
+    else
+    {
+    <table class="table">
+        <thead>
+            <tr><th>Version</th><th>CreatedAt</th><th>SentAt</th><th>AcknowledgetAt</th></tr>
+        </thead>
+        <tbody>
+        <tr>
+        <td>@config.Message.Version</td>
+        <td>@config.Time.CreatedAt</td>
+        <td>@config.Time.SentAt</td>
+        <td>@config.Time.AcknowledgedAt</td>
+        </tr>
+        </tbody>
+        <thead>
+            <tr><th>Interval</th><th>MaxSilence</th></tr>
+        </thead>
+
+        <tbody>
+        <tr>
+
+            <td>
+            <label>Interval (s)</label>
+            <input type="number" class="form-control" @bind="config.Message.Interval"></td>
+
+            <td> <label>Max Silence (s)</label><input type="number" class="form-control" @bind="config.Message.MaxSilence"></td>
+            </tr>
+        </tbody>
+        <thead>
+            <tr><th>Channel</th><th>Enabled</th><th>Deadband</th></tr>
+        </thead>
+        <tbody>
+@foreach (var s in config.Message.Channels.Sensors)
+                {
+                <tr>
+                    <td>@s.Channel</td>
+                    <td><label>Enabled</label>
+                    <input type="checkbox" class="form-check-input" @bind="s.Enabled"></td>
+                    <td><label>Deadband</label> <input type="number" step="any" class="form-control" @bind="s.Deadband"></td>
+
+                </tr>
+                }
+        </tbody>
+    </table>
+    <button class="btn btn-primary" @onclick="SaveConfig">Save Config</button>
+    @if(saveMessage is not null){
+    <div class="alert alert-info">@saveMessage</div>
+    }
+
+    }
+}
+
+
+
+@code {
+    private ConfigWeb? config;
+    private string? message;
+    private string? saveMessage;
+    [Parameter]
+    public int Id{get;set;}
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadConfig();
+    }
+
+    private async Task LoadConfig(){
+        var api = HttpFactory.CreateClient("Api");
+        var configRes = await api.GetAsync($"api/v1/devices/{Id}/config");
+
+        if(configRes.IsSuccessStatusCode){
+            config = await configRes.Content.ReadFromJsonAsync<ConfigWeb>(ApiJson.Options);
+        }else{
+            var body = await configRes.Content.ReadAsStringAsync();
+            message = $"Error {(int)configRes.StatusCode}:{body}";
+        }
+
+
+    }
+
+    private async Task SaveConfig(){
+        saveMessage = null;
+        var api = HttpFactory.CreateClient("Api");
+        var put = await api.PutAsJsonAsync($"api/v1/devices/{Id}/config", config,ApiJson.Options);
+        if(put.IsSuccessStatusCode){
+            await LoadConfig();
+            saveMessage = $"Config {config!.Message.Version} was saved.";
+        }else{
+            var body = await put.Content.ReadAsStringAsync();
+            saveMessage = $"Error {(int)put.StatusCode}:{body}";
+        }
+
+    }
+
+
+    private static string StatusClass(bool enable) => enable switch{
+        true =>"text-bg-success",
+        false =>"text-bg-danger",
+    };
+
+}

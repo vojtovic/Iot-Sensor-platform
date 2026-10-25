@@ -47,7 +47,7 @@ public class ConfigWorker(IMqttBus bus, ILogger<ConfigWorker> logger, IServiceSc
 
                 if (deviceConfig is null)
                 {
-                    logger.LogWarning("Message is null");
+                    logger.LogWarning("Unknown device or configuration version");
                     return;
                 }
                 if (jsonPayload.Accepted && deviceConfig.Acknowledged is null)
@@ -57,7 +57,7 @@ public class ConfigWorker(IMqttBus bus, ILogger<ConfigWorker> logger, IServiceSc
                 if (!jsonPayload.Accepted)
                 {
                     logger.LogWarning("Not accepted");
-                    logger.LogError("Error: {Error}", jsonPayload.Error);
+                    logger.LogWarning("Error: {Error}", jsonPayload.Error);
                     return;
                 }
 
@@ -69,7 +69,7 @@ public class ConfigWorker(IMqttBus bus, ILogger<ConfigWorker> logger, IServiceSc
             }
             catch (JsonException ex)
             {
-                logger.LogError(ex, " Inavalid message. {Topic}", msg.Topic);
+                logger.LogError(ex, "Inavalid acknowledgement from {Topic}", msg.Topic);
             }
             return;
 

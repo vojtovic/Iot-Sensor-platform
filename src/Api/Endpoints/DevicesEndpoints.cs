@@ -648,12 +648,12 @@ namespace api.Endpoints
 
                     if (request is null || request.Message.Channels is null)
                     {
-                        return Results.NotFound(new { message = "Bad request" });
+                        return Results.BadRequest(new { message = "Bad request" });
                     }
 
                     if (request.Message.Channels.Sensors is null)
                     {
-                        return Results.InternalServerError(new { message = "Stored configuration is invalid" });
+                        return Results.BadRequest(new { message = "Stored configuration is invalid" });
                     }
                     int newVersion;
                     if (config is not null)
@@ -680,9 +680,9 @@ namespace api.Endpoints
                             )
                     )
                         ;
-                    if (!validator.Evaluate(resultMessage, device.Sensors))
+                    if (validator.Evaluate(resultMessage, device.Sensors) is not null)
                     {
-                        return Results.BadRequest(new { message = "Config is not valid" });
+                        return Results.BadRequest(new { message = $"Config is not valid : {validator.Evaluate(resultMessage, device.Sensors)}" });
                     }
 
                     var jsonPayload = JsonSerializer.Serialize<ConfigMessage>(resultMessage, JsonOptionsWrite);

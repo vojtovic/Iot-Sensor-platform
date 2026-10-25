@@ -38,7 +38,7 @@ else
                     <td>@b.LastSeenAt</td>
                     <td>@b.CredentialsIssuedAt</td>
                     <td>@b.Room</td>
-                    <td><a href="@GetUrl(b.Id)"  @onclick:stopPropagation="true" target="_blank">Measurments</a></td>
+                    <td><a href="@GetUrl(b.Id)"  @onclick:stopPropagation="true" target="_blank">Measurments</a>|<a href="devices/@b.Id/config"  @onclick:stopPropagation="true" target="_blank">Config</a></td>
                     <td>
                     @if(b.Status == DeviceStatus.Approved){
                     <div class="d-flex gap-2 mb-3">
@@ -220,6 +220,7 @@ else
         private string GetUrl(int deviceId){
         return $"{Config["Grafana:DeviceDashboardUrl"]}?var-device={deviceId}&var-channel=$__all&from=now-24h&to=now";
         }
+
 
 
         private async Task UpdateDeviceStatusToApproved(int deviceId){

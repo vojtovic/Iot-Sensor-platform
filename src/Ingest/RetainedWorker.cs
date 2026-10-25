@@ -39,7 +39,7 @@ public class RetainedWorker(IMqttBus bus, ILogger<RetainedWorker> logger, IServi
             catch (Exception ex)
             {
 
-                logger.LogError(ex, " Exception. {HardwareId}", d.HardwareId);
+                logger.LogError(ex, " Failed to publish configuration for {HardwareId}", d.HardwareId);
             }
 
         }
