@@ -33,6 +33,8 @@ namespace api.Endpoints
                             Status = d.Status,
                             FirmwareVersion = d.FirmwareVersion,
                             LastSeenAt = d.LastSeenAt,
+                            IsOnline = d.IsOnline,
+                            OnlineChangedAt = d.OnlineChangedAt,
                             CredentialsIssuedAt = d.CredentialsIssuedAt,
                             Sensors = d
                                 .Sensors.Select(s => new SensorDto
@@ -78,6 +80,8 @@ namespace api.Endpoints
                             RoomId = d.RoomId,
                             Room = d.Room != null ? d.Room.Name : "no Room",
                             Status = d.Status,
+                            IsOnline = d.IsOnline,
+                            OnlineChangedAt = d.OnlineChangedAt,
                             FirmwareVersion = d.FirmwareVersion,
                             LastSeenAt = d.LastSeenAt,
                             CredentialsIssuedAt = d.CredentialsIssuedAt,
@@ -215,6 +219,8 @@ namespace api.Endpoints
                         Status = device.Status,
                         FirmwareVersion = device.FirmwareVersion,
                         LastSeenAt = device.LastSeenAt,
+                        IsOnline = device.IsOnline,
+                        OnlineChangedAt = device.OnlineChangedAt,
                         CredentialsIssuedAt = device.CredentialsIssuedAt,
                         Sensors = device
                             .Sensors.Select(s => new SensorDto
@@ -291,6 +297,8 @@ namespace api.Endpoints
                         RoomId = device.RoomId,
                         Room = device.Room != null ? device.Room.Name : "no Room",
                         Status = device.Status,
+                        IsOnline = device.IsOnline,
+                        OnlineChangedAt = device.OnlineChangedAt,
                         FirmwareVersion = device.FirmwareVersion,
                         LastSeenAt = device.LastSeenAt,
                         CredentialsIssuedAt = device.CredentialsIssuedAt,
@@ -393,11 +401,7 @@ namespace api.Endpoints
             var appRoute = app.MapGroup("/api/v1");
             appRoute.MapPost(
                 "/devices/{id}/restore",
-                async (
-                    AppDbContext iot,
-                    int id,
-                    CancellationToken ct
-                ) =>
+                async (AppDbContext iot, int id, CancellationToken ct) =>
                 {
                     var device = await iot.Devices.FirstOrDefaultAsync(d => d.Id == id, ct);
 
@@ -410,7 +414,6 @@ namespace api.Endpoints
                     {
                         device.Status = DeviceStatus.Pending;
                         await iot.SaveChangesAsync(ct);
-
                     }
                     else
                     {
@@ -420,9 +423,7 @@ namespace api.Endpoints
                     return Results.NoContent();
                 }
             );
-
         }
-
 
         public static void UpdateDeviceStatusToApproved(this WebApplication app)
         {
@@ -463,7 +464,6 @@ namespace api.Endpoints
                         return Results.Conflict(new { message = "You can not do this" });
                     }
 
-
                     return Results.NoContent();
                 }
             );
@@ -492,31 +492,31 @@ namespace api.Endpoints
                     }
                     if (device.DeviceSecret is null)
                     {
-                        return Results.Conflict(new { message = "Device has no secret (old firmware), use generate token" });
+                        return Results.Conflict(
+                            new
+                            {
+                                message = "Device has no secret (old firmware), use generate token",
+                            }
+                        );
                     }
                     device.ClaimToken = device.DeviceSecret;
                     if (!await iot.DeviceConfigurations.Where(c => c.DeviceId == id).AnyAsync(ct))
                     {
-
-
-
-
                         ConfigMessage resultMessage = new ConfigMessage(
                             1,
                             60,
                             900,
                             new ChannelConfig(
-
-                                device.Sensors.Where(s => s.ChannelStatus != ChannelStatus.Declined).Select(c => new SensorConfig
-                                (
-                                    true,
-                                    0,
-                                    c.Channel
-                                )).ToList()
-                                )
-                        )
-                            ;
-                        var jsonPayload = JsonSerializer.Serialize<ConfigMessage>(resultMessage, JsonOptionsWrite);
+                                device
+                                    .Sensors.Where(s => s.ChannelStatus != ChannelStatus.Declined)
+                                    .Select(c => new SensorConfig(true, 0, c.Channel))
+                                    .ToList()
+                            )
+                        );
+                        var jsonPayload = JsonSerializer.Serialize<ConfigMessage>(
+                            resultMessage,
+                            JsonOptionsWrite
+                        );
                         DeviceConfiguration ConfigToAdd = new()
                         {
                             DeviceId = id,
@@ -537,6 +537,7 @@ namespace api.Endpoints
                 }
             );
         }
+
         private static readonly JsonSerializerOptions JsonOptionsRead = new()
         {
             PropertyNameCaseInsensitive = true,
@@ -544,38 +545,42 @@ namespace api.Endpoints
 
         public static void GetDeviceConfig(this WebApplication app)
         {
-
             var appRoute = app.MapGroup("/api/v1");
             appRoute.MapGet(
                 "/devices/{id}/config",
                 async (AppDbContext iot, int id, CancellationToken ct) =>
                 {
-                    var deviceExists = await iot
-                        .Devices.Where(d => d.Id == id)
-                        .AnyAsync(ct);
+                    var deviceExists = await iot.Devices.Where(d => d.Id == id).AnyAsync(ct);
 
                     if (deviceExists is false)
                     {
                         return Results.NotFound(new { message = "Device not found" });
                     }
 
-                    var config = await iot.DeviceConfigurations
-                    .Where(c => c.DeviceId == id)
-                    .OrderByDescending(c => c.Version)
-                    .FirstOrDefaultAsync(ct);
+                    var config = await iot
+                        .DeviceConfigurations.Where(c => c.DeviceId == id)
+                        .OrderByDescending(c => c.Version)
+                        .FirstOrDefaultAsync(ct);
                     if (config is null)
                     {
                         return Results.NotFound(new { message = "Device has no configuration" });
                     }
-                    var jsonPayload = JsonSerializer.Deserialize<ConfigMessage>(config.Payload, JsonOptionsRead);
+                    var jsonPayload = JsonSerializer.Deserialize<ConfigMessage>(
+                        config.Payload,
+                        JsonOptionsRead
+                    );
                     if (jsonPayload is null || jsonPayload.Channels is null)
                     {
-                        return Results.InternalServerError(new { message = "Stored configuration is invalid" });
+                        return Results.InternalServerError(
+                            new { message = "Stored configuration is invalid" }
+                        );
                     }
 
                     if (jsonPayload.Channels.Sensors is null)
                     {
-                        return Results.InternalServerError(new { message = "Stored configuration is invalid" });
+                        return Results.InternalServerError(
+                            new { message = "Stored configuration is invalid" }
+                        );
                     }
                     ConfigMessageDto resultMessage = new()
                     {
@@ -584,32 +589,30 @@ namespace api.Endpoints
                         MaxSilence = jsonPayload.MaxSilence,
                         Channels = new ChannelConfigDto
                         {
-                            Sensors = jsonPayload.Channels.Sensors.Select(c => new SensorConfigDto
-                            {
-                                Enabled = c.Enabled,
-                                Deadband = c.Deadband,
-                                Channel = c.Channel
-                            }).ToList()
-                        }
-                    }
-                    ;
+                            Sensors = jsonPayload
+                                .Channels.Sensors.Select(c => new SensorConfigDto
+                                {
+                                    Enabled = c.Enabled,
+                                    Deadband = c.Deadband,
+                                    Channel = c.Channel,
+                                })
+                                .ToList(),
+                        },
+                    };
                     ConfigTimeDto resultTime = new()
                     {
                         CreatedAt = config.CreatedAt,
                         SentAt = config.SentAt,
-                        AcknowledgedAt = config.Acknowledged
+                        AcknowledgedAt = config.Acknowledged,
                     };
 
-                    ConfigDto configResult = new()
-                    {
-                        Message = resultMessage,
-                        Time = resultTime
-                    };
+                    ConfigDto configResult = new() { Message = resultMessage, Time = resultTime };
 
                     return Results.Ok(configResult);
                 }
             );
         }
+
         private static readonly JsonSerializerOptions JsonOptionsWrite = new()
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -617,16 +620,22 @@ namespace api.Endpoints
 
         public static void PutDeviceConfig(this WebApplication app)
         {
-
             var appRoute = app.MapGroup("/api/v1");
             appRoute.MapPut(
                 "/devices/{id}/config",
-                async (AppDbContext iot, int id, PutConfigDto request, IConfigValidator validator, CancellationToken ct, IMqttBus mqtt) =>
+                async (
+                    AppDbContext iot,
+                    int id,
+                    PutConfigDto request,
+                    IConfigValidator validator,
+                    CancellationToken ct,
+                    IMqttBus mqtt
+                ) =>
                 {
                     var device = await iot
                         .Devices.Where(d => d.Id == id)
                         .Include(s => s.Sensors)
-                        .ThenInclude(t => t.SensorType)
+                            .ThenInclude(t => t.SensorType)
                         .FirstOrDefaultAsync(ct);
 
                     if (device is null)
@@ -638,13 +647,10 @@ namespace api.Endpoints
                         return Results.Conflict(new { message = "Device has to be Approved" });
                     }
 
-                    var config = await iot.DeviceConfigurations
-                    .Where(c => c.DeviceId == id)
-                    .OrderByDescending(c => c.Version)
-                    .FirstOrDefaultAsync(ct);
-
-
-
+                    var config = await iot
+                        .DeviceConfigurations.Where(c => c.DeviceId == id)
+                        .OrderByDescending(c => c.Version)
+                        .FirstOrDefaultAsync(ct);
 
                     if (request is null || request.Message.Channels is null)
                     {
@@ -653,7 +659,9 @@ namespace api.Endpoints
 
                     if (request.Message.Channels.Sensors is null)
                     {
-                        return Results.BadRequest(new { message = "Stored configuration is invalid" });
+                        return Results.BadRequest(
+                            new { message = "Stored configuration is invalid" }
+                        );
                     }
                     int newVersion;
                     if (config is not null)
@@ -670,22 +678,29 @@ namespace api.Endpoints
                         request.Message.Interval,
                         request.Message.MaxSilence,
                         new ChannelConfig(
-
-                            request.Message.Channels.Sensors.Select(c => new SensorConfig
-                            (
-                                c.Enabled,
-                                c.Deadband,
-                                c.Channel
-                            )).ToList()
-                            )
-                    )
-                        ;
+                            request
+                                .Message.Channels.Sensors.Select(c => new SensorConfig(
+                                    c.Enabled,
+                                    c.Deadband,
+                                    c.Channel
+                                ))
+                                .ToList()
+                        )
+                    );
                     if (validator.Evaluate(resultMessage, device.Sensors) is not null)
                     {
-                        return Results.BadRequest(new { message = $"Config is not valid : {validator.Evaluate(resultMessage, device.Sensors)}" });
+                        return Results.BadRequest(
+                            new
+                            {
+                                message = $"Config is not valid : {validator.Evaluate(resultMessage, device.Sensors)}",
+                            }
+                        );
                     }
 
-                    var jsonPayload = JsonSerializer.Serialize<ConfigMessage>(resultMessage, JsonOptionsWrite);
+                    var jsonPayload = JsonSerializer.Serialize<ConfigMessage>(
+                        resultMessage,
+                        JsonOptionsWrite
+                    );
 
                     DeviceConfiguration ConfigToAdd = new()
                     {
@@ -708,11 +723,8 @@ namespace api.Endpoints
             );
         }
 
-
-
         public static void DisableDeviceConfig(this WebApplication app)
         {
-
             var appRoute = app.MapGroup("/api/v1");
             appRoute.MapPut(
                 "/devices/{id}/config/disable",
@@ -721,7 +733,7 @@ namespace api.Endpoints
                     var device = await iot
                         .Devices.Where(d => d.Id == id)
                         .Include(s => s.Sensors)
-                        .ThenInclude(t => t.SensorType)
+                            .ThenInclude(t => t.SensorType)
                         .FirstOrDefaultAsync(ct);
 
                     if (device is null)
@@ -735,18 +747,10 @@ namespace api.Endpoints
 
                     string topic = $"iot/v1/{device.HardwareId}/config";
 
-
                     await mqtt.PublishAsync(topic, "", ct, true);
                     return Results.NoContent();
                 }
             );
         }
-
-
-
-
-
-
-
     }
 }

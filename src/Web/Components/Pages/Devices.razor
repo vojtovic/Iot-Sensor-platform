@@ -25,7 +25,7 @@ else
 <span class="badge rounded-pill text-bg-secondary">@devices.Count</span>
     <table class="table">
         <thead>
-            <tr><th>Id</th><th>HardwareId</th><th>Status</th><th>FirmwareVersion</th><th>LastSeenAt</th><th>CredentialsIssuedAt</th><th>Room</th><th>Link</th><th>Actions</th> </tr>
+            <tr><th>Id</th><th>HardwareId</th><th>Status</th><th>FirmwareVersion</th><th>LastSeenAt</th><th>CredentialsIssuedAt</th><th>Room</th><th>Link</th><th>Actions</th><th>Online</th><th>Online Status Changed At</th> </tr>
         </thead>
         <tbody>
             @foreach (var b in FilteredDevices)
@@ -58,10 +58,12 @@ else
                     </div>
                     }
                      </td>
+                     <td><span class="badge rounded-pill @OnlineClass(b.IsOnline)">@OnlineClassText(b.IsOnline)</span></td>
+                     <td>@b.OnlineChangedAt</td>
                 </tr>
                 @if(expandedId == b.Id){
 <tr>
-                        <td colspan ="9">
+                        <td colspan ="11">
  @if(b.Sensors.Count > 0){
                             <table class="table">
                             <thead>
@@ -160,6 +162,18 @@ else
 
         _ =>"text-bg-light"
     };
+
+ private static string OnlineClass(bool? online) => online switch{
+        true =>"text-bg-success",
+        false =>"text-bg-warning",
+        _=> "text-bg-light"
+    };
+  private static string OnlineClassText(bool? online) => online switch{
+        true =>"Online",
+        false =>"Offline",
+        _=> "Unknown"
+    };
+
 
     private static string ChannelStatusClass(ChannelStatus status) => status switch{
         ChannelStatus.Active =>"text-bg-success",

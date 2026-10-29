@@ -500,3 +500,4 @@ simulator/
 
 # old telemetry simulator, replaced by github.com/vojtovic/iot-examples
 src/Simulator/
+*__virtual.html

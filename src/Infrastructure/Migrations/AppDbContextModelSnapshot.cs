@@ -160,9 +160,17 @@ namespace Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("hardware_id");
 
+                    b.Property<bool?>("IsOnline")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_online");
+
                     b.Property<DateTimeOffset?>("LastSeenAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_seen_at");
+
+                    b.Property<DateTimeOffset?>("OnlineChangedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("online_changed_at");
 
                     b.Property<int?>("RoomId")
                         .HasColumnType("integer")
@@ -251,6 +259,48 @@ namespace Infrastructure.Migrations
                         .HasName("pk_measurements");
 
                     b.ToTable("measurements", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.RequestedSensorType", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("channel");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("FirstSeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("first_seen_at");
+
+                    b.Property<string>("HardwareId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("hardware_id");
+
+                    b.Property<DateTimeOffset>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_seen_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_requested_sensor_types");
+
+                    b.HasIndex("HardwareId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_requested_sensor_types_hardware_id_code");
+
+                    b.ToTable("requested_sensor_types", (string)null);
                 });
 
             modelBuilder.Entity("Domain.Room", b =>

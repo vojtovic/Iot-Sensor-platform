@@ -6,10 +6,50 @@
 
 <PageTitle>Sensor types</PageTitle>
 <h1>Sensor types</h1>
+@if (requestedSensorTypes is null)
+{
+    <p>loading…</p>
+}
+else if (requestedSensorTypes.Count == 0)
+{
+    <p>Zero new requested sensor types</p>
+}
+else
+{
+<span class="badge rounded-pill text-bg-secondary">@requestedSensorTypes.Count</span>
+    <table class="table">
+        <thead>
+            <tr><th>Id</th><th>HardwareId</th><th>Code</th><th>Channel</th><th>Last Seen At</th><th>Last seen at</th><th>Button</th></tr>
+        </thead>
+        <tbody>
+            @foreach (var b in requestedSensorTypes)
+            {
+                <tr>
+                    <td>@b.Id</td>
+                    <td>@b.HardwareId</td>
+                    <td>@b.Code</td>
+                    <td>@b.Channel</td>
+                    <td>@b.LastSeenAt</td>
+                    <td>@b.FirstSeenAt</td>
+                    <td><button class="btn btn-primary" @onclick="() => UseRequestedSensor(b.Code)">Use Sensor Type</button>
+</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+  }
 <div class="mb-3">
+
+    <label class="form-label">Code (a-z, 0-9,_)</label>
     <input class="form-control mb-2" placeholder="Code" @bind="newCode"/>
+
+    <label class="form-label">Unit</label>
     <input class="form-control mb-2" placeholder="Unit" @bind="newUnit"/>
+    <label class="form-label"> MinValid</label>
     <input class="form-control mb-2" type="number" step="any" placeholder="MinValid" @bind="newMinValid"/>
+
+    <label class="form-label"> MaxValid</label>
     <input class="form-control mb-2" type="number" step="any" placeholder="MaxValid" @bind="newMaxValid"/>
     <button class="btn btn-primary" @onclick="AddSensorType">Add Sensor Type</button>
 </div>
@@ -21,6 +61,9 @@
 @if(message is not null){
 <div class="alert alert-info">@message</div>
 }
+
+
+
 
 @if (sensorTypes is null)
 {
@@ -61,11 +104,14 @@ else
     private double newMinValid;
     private string? message;
     private List<SensorTypeDto>? sensorTypes;
+    private List<RequestedSensorTypeWeb>? requestedSensorTypes;
 
     protected override async Task OnInitializedAsync()
     {
         var api = HttpFactory.CreateClient("Api");
         sensorTypes = await api.GetFromJsonAsync<List<SensorTypeDto>>("api/v1/sensor-types");
+
+        requestedSensorTypes = await api.GetFromJsonAsync<List<RequestedSensorTypeWeb>>("api/v1/sensor-types/requested");
 
     }
 
@@ -82,6 +128,8 @@ else
             newMinValid = 0;
             sensorTypes = await api.GetFromJsonAsync<List<SensorTypeDto>>("api/v1/sensor-types");
 
+        requestedSensorTypes = await api.GetFromJsonAsync<List<RequestedSensorTypeWeb>>("api/v1/sensor-types/requested");
+
         }else
         {
             var body = await response.Content.ReadAsStringAsync();
@@ -89,7 +137,10 @@ else
 
         }
     }
+    private void UseRequestedSensor(string code){
+      newCode = code;
 
+  }
 
     private string? NameFilter;
 

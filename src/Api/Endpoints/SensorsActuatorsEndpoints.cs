@@ -160,6 +160,7 @@ namespace api.Endpoints
                 }
             );
         }
+
         public static void GetSensorsTypes(this WebApplication app)
         {
             var appRoute = app.MapGroup("/api/v1");
@@ -209,7 +210,10 @@ namespace api.Endpoints
                     {
                         return Results.BadRequest(new { message = "request is null" });
                     }
-                    if (string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.Unit))
+                    if (
+                        string.IsNullOrWhiteSpace(request.Code)
+                        || string.IsNullOrWhiteSpace(request.Unit)
+                    )
                     {
                         return Results.BadRequest(new { message = "request cant be null" });
                     }
@@ -219,17 +223,25 @@ namespace api.Endpoints
                         return Results.BadRequest(new { message = "MaxValid has to be bigger" });
                     }
 
-
-
                     string normalizedCode = request.Code.Trim().ToLowerInvariant();
 
                     if (!IsCodeValid(normalizedCode))
                     {
-                        return Results.BadRequest(new { message = "Code must contain only lowercase letters (a-z) and digits (0-9) and _" });
+                        return Results.BadRequest(
+                            new
+                            {
+                                message = "Code must contain only lowercase letters (a-z) and digits (0-9) and _",
+                            }
+                        );
                     }
                     if (await iot.SensorTypes.AnyAsync(s => s.Code == normalizedCode, ct))
                     {
-                        return Results.Conflict(new { message = $"Sensor type with code '{normalizedCode}'already exists." });
+                        return Results.Conflict(
+                            new
+                            {
+                                message = $"Sensor type with code '{normalizedCode}'already exists.",
+                            }
+                        );
                     }
 
                     var newsensor = new SensorType
@@ -242,6 +254,10 @@ namespace api.Endpoints
 
                     iot.SensorTypes.Add(newsensor);
                     await iot.SaveChangesAsync(ct);
+                    await iot
+                        .RequestedSensorTypes.Where(d => d.Code == normalizedCode)
+                        .ExecuteDeleteAsync(ct);
+
                     var newSensor = new SensorTypeDto
                     {
                         Id = newsensor.Id,
@@ -256,7 +272,27 @@ namespace api.Endpoints
             );
         }
 
-
-
+        public static void GetRequestedSensorTypes(this WebApplication app)
+        {
+            var appRoute = app.MapGroup("/api/v1");
+            appRoute.MapGet(
+                "/sensor-types/requested",
+                async (AppDbContext iot, CancellationToken ct) =>
+                {
+                    return await iot
+                        .RequestedSensorTypes.OrderByDescending(d => d.LastSeenAt)
+                        .Select(d => new RequestedSensorTypeDTO
+                        {
+                            Id = d.Id,
+                            Code = d.Code,
+                            HardwareId = d.HardwareId,
+                            Channel = d.Channel,
+                            FirstSeenAt = d.FirstSeenAt,
+                            LastSeenAt = d.LastSeenAt,
+                        })
+                        .ToListAsync(ct);
+                }
+            );
+        }
     }
 }

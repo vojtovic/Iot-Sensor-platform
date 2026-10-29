@@ -1,5 +1,5 @@
-
 using Domain;
+
 namespace api.Models;
 
 public class DeviceDto
@@ -13,7 +13,7 @@ public class DeviceDto
     public DateTimeOffset? CredentialsIssuedAt { get; set; }
     public ICollection<SensorDto> Sensors { get; set; } = new List<SensorDto>();
     public ICollection<ActuatorDto> Actuators { get; set; } = new List<ActuatorDto>();
+    public bool? IsOnline { get; set; }
+    public DateTimeOffset? OnlineChangedAt { get; set; }
     public string? Room { get; set; }
-
-
 }

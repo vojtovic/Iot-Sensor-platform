@@ -1,9 +1,6 @@
-
 using Domain;
 
 namespace Web.Models;
-
-
 
 public class DeviceWeb
 {
@@ -16,6 +13,6 @@ public class DeviceWeb
     public string? Room { get; set; }
     public List<SensorWeb> Sensors { get; set; } = [];
     public List<ActuatorWeb> Actuators { get; set; } = [];
-
-
+    public bool? IsOnline { get; set; }
+    public DateTimeOffset? OnlineChangedAt { get; set; }
 }

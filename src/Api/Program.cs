@@ -42,15 +42,13 @@ builder.Services.AddSingleton<ITimestampResolver>(_ => new TimestampResolver(
 ));
 
 builder.Services.AddSingleton<IDeviceKeyVerifier>(_ => new DeviceKeyVerifier(
-    (
-            builder.Configuration["Claim:GroupKey"]!
-    )
+    (builder.Configuration["Claim:GroupKey"]!)
 ));
-
 
 builder.Services.AddHostedService<ClaimWorker>();
 builder.Services.AddHostedService<RetainedWorker>();
 builder.Services.AddHostedService<ConfigWorker>();
+builder.Services.AddHostedService<OnlineWorker>();
 builder.Services.AddScoped<IClaimService, ClaimService>();
 builder.Services.AddSingleton<IConfigValidator, ConfigValidator>();
 builder.Services.AddSingleton<IDeviceProvisioner>(_ => new DeviceProvisioner(
@@ -106,7 +104,7 @@ app.AddSensorTypes();
 app.GetSensorsTypes();
 app.GetDeviceConfig();
 app.PutDeviceConfig();
-
+app.GetRequestedSensorTypes();
 
 app.MapGet("/", () => "Hello World!");
 
