@@ -31,6 +31,9 @@ builder.Services.AddSingleton<IMqttBus>(_ => new MqttBus(
 ));
 
 builder.Services.AddHostedService<TelemetryWorker>();
+builder.Services.AddSingleton<TelemetryQueue>();
+
+builder.Services.AddHostedService<TelemetryProcessor>();
 builder.Services.AddScoped<IMeasurementWriter, MeasurementWriter>();
 builder.Services.AddSingleton<ITelemetryValidator, TelemetryValidator>();
 builder.Services.AddSingleton<ITimestampResolver>(_ => new TimestampResolver(

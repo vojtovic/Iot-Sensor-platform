@@ -1,76 +1,72 @@
+using System.Text.Json;
+using Domain;
 using Infrastructure.Messaging;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
-using Domain;
-using Microsoft.Extensions.DependencyInjection;
-
 
 namespace Ingest;
 
-
-
-public class TelemetryWorker(IMqttBus bus, ILogger<TelemetryWorker> logger, IServiceScopeFactory scopeFactory) : BackgroundService
+public class TelemetryWorker(IMqttBus bus, ILogger<TelemetryWorker> logger, TelemetryQueue queue)
+    : BackgroundService
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
-        PropertyNameCaseInsensitive = true
+        PropertyNameCaseInsensitive = true,
     };
-
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-
-        await bus.SubscribeAsync("iot/v1/+/telemetry", async msg =>
-        {
-            logger.LogInformation("Message from {Topic}: {Payload}", msg.Topic, msg.Payload);
-            try
+        await bus.SubscribeAsync(
+            "iot/v1/+/telemetry",
+            async msg =>
             {
-                var jsonPayload = JsonSerializer.Deserialize<TelemetryMessage>(msg.Payload, JsonOptions);
-
-                if (jsonPayload is null)
+                logger.LogDebug("Message from {Topic}: {Payload}", msg.Topic, msg.Payload);
+                try
                 {
-                    logger.LogWarning("Empty message from {Topic}", msg.Topic);
-                    return;
+                    var jsonPayload = JsonSerializer.Deserialize<TelemetryMessage>(
+                        msg.Payload,
+                        JsonOptions
+                    );
+
+                    if (jsonPayload is null)
+                    {
+                        logger.LogWarning("Empty message from {Topic}", msg.Topic);
+                        return;
+                    }
+
+                    logger.LogDebug(
+                        "Time: {Ts}, seq: {Seq}, read num: {Count}",
+                        jsonPayload.Ts,
+                        jsonPayload.Seq,
+                        jsonPayload.Readings.Count
+                    );
+
+                    string[] parts = msg.Topic.Split("/");
+
+                    foreach (var reading in jsonPayload.Readings)
+                    {
+                        logger.LogDebug(
+                            "  {Channel} = {Value} (status: {Status})",
+                            reading.Channel,
+                            reading.Value,
+                            reading.Status ?? "—"
+                        );
+                    }
+
+                    var item = new TelemetryItem(parts[2], jsonPayload, msg.ReceivedAt);
+                    await queue.Writer.WriteAsync(item, stoppingToken);
                 }
-
-                logger.LogInformation("Time: {Ts}, seq: {Seq}, read num: {Count}",
-                    jsonPayload.Ts, jsonPayload.Seq, jsonPayload.Readings.Count);
-
-                string[] parts = msg.Topic.Split("/");
-                using var scope = scopeFactory.CreateScope();
-                var writer = scope.ServiceProvider.GetRequiredService<IMeasurementWriter>();
-
-
-                foreach (var reading in jsonPayload.Readings)
+                catch (OperationCanceledException)
                 {
-                    logger.LogInformation("  {Channel} = {Value} (status: {Status})",
-                        reading.Channel, reading.Value, reading.Status ?? "—");
-
+                    logger.LogWarning("Canceled");
                 }
-                await writer.WriteAsync(parts[2], jsonPayload, msg.ReceivedAt, stoppingToken);
-            }
-            catch (OperationCanceledException)
-            {
-                logger.LogWarning("Canceled");
-            }
-            catch (JsonException ex)
-            {
-                logger.LogError(ex, " Inavalid message {Topic}", msg.Topic);
-            }
-            return;
-
-        }, stoppingToken);
-
-
-
-
-
-
-
-
-
-
-
+                catch (JsonException ex)
+                {
+                    logger.LogError(ex, " Inavalid message {Topic}", msg.Topic);
+                }
+                return;
+            },
+            stoppingToken
+        );
     }
 }
