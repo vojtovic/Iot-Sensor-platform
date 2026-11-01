@@ -500,38 +500,7 @@ namespace api.Endpoints
                         );
                     }
                     device.ClaimToken = device.DeviceSecret;
-                    if (!await iot.DeviceConfigurations.Where(c => c.DeviceId == id).AnyAsync(ct))
-                    {
-                        ConfigMessage resultMessage = new ConfigMessage(
-                            1,
-                            60,
-                            900,
-                            new ChannelConfig(
-                                device
-                                    .Sensors.Where(s => s.ChannelStatus != ChannelStatus.Declined)
-                                    .Select(c => new SensorConfig(true, 0, c.Channel))
-                                    .ToList()
-                            )
-                        );
-                        var jsonPayload = JsonSerializer.Serialize<ConfigMessage>(
-                            resultMessage,
-                            JsonOptionsWrite
-                        );
-                        DeviceConfiguration ConfigToAdd = new()
-                        {
-                            DeviceId = id,
-                            Version = 1,
-                            Payload = jsonPayload,
-                            CreatedAt = DateTimeOffset.UtcNow,
-                        };
-                        string topic = $"iot/v1/{device.HardwareId}/config";
 
-                        await iot.AddAsync(ConfigToAdd, ct);
-                        await iot.SaveChangesAsync(ct);
-                        await mqtt.PublishAsync(topic, jsonPayload, ct, true);
-                        ConfigToAdd.SentAt = DateTimeOffset.UtcNow;
-                        await iot.SaveChangesAsync(ct);
-                    }
                     await iot.SaveChangesAsync(ct);
                     return Results.Ok(new { message = "Device Approved" });
                 }

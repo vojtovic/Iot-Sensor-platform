@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
 using Domain;
+using EFCore.NamingConventions.Internal;
 using Infrastructure;
 using Infrastructure.Messaging;
 using Infrastructure.Persistence;
@@ -26,6 +27,7 @@ public record DeviceCapabilities(
 public class ClaimService(
     AppDbContext appDbContext,
     IDeviceProvisioner provisioner,
+    IMqttBus mqtt,
     ILogger<ClaimService> logger,
     IDeviceKeyVerifier deviceKeyVerifier
 ) : IClaimService
@@ -33,6 +35,11 @@ public class ClaimService(
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
+    };
+    private static readonly JsonSerializerOptions JsonOptions2 = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
     private static async Task<ClaimResponseMessage?> AddDevice(
@@ -179,7 +186,7 @@ public class ClaimService(
         }
 
         await appDbContext.SaveChangesAsync(ct);
-
+        await CreateDefaultConfigAsync(device, ct);
         var acceptedSensors = toApproveSensors.Select(s => (s.Channel)).ToList();
         var acceptedActuators = toApproveActuators.Select(s => (s.Channel)).ToList();
         return new ClaimResponseMessage(
@@ -578,6 +585,43 @@ public class ClaimService(
         return null;
     }
 
+    private async Task CreateDefaultConfigAsync(Device device, CancellationToken ct)
+    {
+        if (
+            !await appDbContext
+                .DeviceConfigurations.Where(c => c.DeviceId == device.Id)
+                .AnyAsync(ct)
+        )
+        {
+            ConfigMessage resultMessage = new ConfigMessage(
+                1,
+                60,
+                900,
+                new ChannelConfig(
+                    device
+                        .Sensors.Where(s => s.ChannelStatus != ChannelStatus.Declined)
+                        .Select(c => new SensorConfig(true, 0, c.Channel))
+                        .ToList()
+                )
+            );
+            var jsonPayload = JsonSerializer.Serialize<ConfigMessage>(resultMessage, JsonOptions2);
+            DeviceConfiguration ConfigToAdd = new()
+            {
+                DeviceId = device.Id,
+                Version = 1,
+                Payload = jsonPayload,
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            string topic = $"iot/v1/{device.HardwareId}/config";
+
+            await appDbContext.AddAsync(ConfigToAdd, ct);
+            await appDbContext.SaveChangesAsync(ct);
+            await mqtt.PublishAsync(topic, jsonPayload, ct, true);
+            ConfigToAdd.SentAt = DateTimeOffset.UtcNow;
+            await appDbContext.SaveChangesAsync(ct);
+        }
+    }
+
     private async Task<ClaimResponseMessage> ReissueCredentialsAsync(
         ClaimRequestMessage request,
         Device device,
@@ -592,6 +636,7 @@ public class ClaimService(
         device.ClaimToken = null;
         device.CredentialsIssuedAt = DateTimeOffset.UtcNow;
         await appDbContext.SaveChangesAsync(ct);
+        await CreateDefaultConfigAsync(device, ct);
         var sensors = await appDbContext
             .Sensors.Where(s => s.DeviceId == device.Id)
             .Select(s => new { s.Channel, ChannelStatus = s.ChannelStatus })
