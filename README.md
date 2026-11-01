@@ -1,6 +1,6 @@
 # IoT System
-IoT system for Acquisition, Transmission, and Storage of Sensor Data in Indoor Environments
 
+IoT system for Acquisition, Transmission, and Storage of Sensor Data in Indoor Environments
 
 <div align="center">
 
@@ -8,42 +8,58 @@ IoT system for Acquisition, Transmission, and Storage of Sensor Data in Indoor E
 | :---: | :---: | :---: | :---: |
 | Transport | Eclipse Mosquitto | 2.1.2 | MQTT broker; telemetry on `iot/v1/{hardwareId}/telemetry` |
 | Backend | .NET / ASP.NET Core | 10.0 | hosts the ingest pipeline as a `BackgroundService` |
-| MQTT client | MQTTnet | 5.2.0 1603 | subscribe to telemetry topiss |
+| MQTT client | MQTTnet | 5.2.0 1603 | subscribe to telemetry topic |
 | ORM | EF CORE + Npgsql | 10.0.3 | data model and migrations |
 | Database | PostgreSQL | 18.6 | relational data: buildings, rooms, devices, sensors |
-| Time series | TimescaleDB | 2.30.1 | hypertable over `measurments` |
-| Visualisation | Grafana | 13.2.2 | dashboards; detasource provisioned from file |
-| Testing | xUnit | 2.9.3 | unnit tests in `tests/Domain.Tests` |
-|Runtime | Docekr Compose | - | broker, database and Grafana|
+| Time series | TimescaleDB | 2.30.1 | hypertable over `measurements` |
+| Visualisation | Grafana | 13.2.2 | dashboards; datasource provisioned from file |
+| Testing | xUnit | 2.9.3 | unit tests in `tests/Domain.Tests` |
+| Runtime | Docker Compose | - | broker, database and Grafana |
 
 <i>Tab.1 Technology</i>
 </div>
 
-
-
 ## How to run it
- requirements: Docker (Docker Desktop for Win/mac-OS), Git
+
+ requirements: Docker (Docker Desktop for Win/mac-OS), Git, .NET 10 SDK (for Simulation)
 
   ```sh
   git clone https://github.com/vojtovic/Iot-Sensor-platform.git
   cd Iot-Sensor-platform
   docker compose up -d
   ```
+
 First start may take few minutes.
 
 | Service | URL | Note |
-|---|---|---|
-| Test client (UI) | http://localhost:5235 | devices, claims, sensor types |
-| API documentation | http://localhost:5047/scalar/v1 | REST API (Scalar) |
-| Grafana | http://localhost:3000 | view without login, admin: `admin` / `admin` |
+| --- | --- | --- |
+| Test client (UI) | <http://localhost:5235> | devices, claims, sensor types |
+| API documentation | <http://localhost:5047/scalar/v1> | REST API (Scalar) |
+| Grafana | <http://localhost:3000> | view without login, admin: `admin` / `admin` |
 | MQTT broker | `localhost:1883` | for devices |
 | PostgreSQL / TimescaleDB | `localhost:5432` | database `timescaledb_iot` |
 
-You can find example code for ESP32 device and simulator in this repository: https://github.com/vojtovic/iot-examples.git. 
+You can simulate traffic by running simulator:
 
-*Note: iot-examples are AI-generated code intended to speed up development.*
+linux/macOS
 
+```sh
+export Claim__GroupKey=$(grep -o 'CLAIM_GROUP_KEY:-[0-9a-fA-F]*' docker-compose.yml | cut -d- -f2) 
+```
 
+PowerShell(win)
+
+```powershell
+$env:Claim__GroupKey = (Select-String -Path docker-compose.yml -Pattern 'CLAIM_GROUP_KEY:-([0-9a-fA-F]+)').Matches[0].Groups[1].Value 
+```
+
+```sh
+dotnet run --project src/Simulator -- 100 1 
+```
+
+*Note: -- 1st parameter(Number of devices every device has 3 sensors , 2nd parameter number of seconds between measurements ,3rd parameter(optional) 10.42.0.54(ip address of broker))*
+
+*Note: Stop with Ctrl + C for summary.*
 
 ## Use of generative AI
 
