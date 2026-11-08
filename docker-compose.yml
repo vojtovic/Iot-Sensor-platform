@@ -21,18 +21,32 @@ services:
       timeout: 5s
       retries: 30
 
+  certs-init:
+    image: alpine/openssl
+    entrypoint: ["sh", "/init/init-certs.sh"]
+    volumes:
+      - ./docker/certs/init-certs.sh:/init/init-certs.sh:ro
+      - ./docker/certs/data:/certs
+    environment:
+      - TLS_SAN=${TLS_SAN:-DNS:mosquitto,DNS:localhost,IP:127.0.0.1}
+    restart: "no"
+
   mosquitto:
     image: eclipse-mosquitto:2
     volumes:
       - ./docker/mosquitto/config/:/mosquitto/config/:ro
       - mosquitto-data:/mosquitto/data/
+      - ./docker/certs/data:/mosquitto/certs/:ro
+
     ports:
-      - "1883:1883"
+      - "8883:8883"
+      - "127.0.0.1:1883:1883"
+
     environment:
-
       - MOSQUITTO_DYNSEC_PASSWORD=${MOSQUITTO_DYNSEC_PASSWORD:-dynsec-admin-password}
-
-
+    depends_on:
+      certs-init:
+        condition: service_completed_successfully
   mosquitto-init:
     image: eclipse-mosquitto:2
     depends_on:

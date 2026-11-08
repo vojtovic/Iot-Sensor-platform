@@ -3,6 +3,8 @@ namespace Simulator;
 using System;
 using System.Buffers;
 using System.Diagnostics;
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -86,6 +88,58 @@ public class VirtualDevice(string hardwareId)
             .Build();
     }
 
+    public static MqttClientTlsOptions? CreateTlsOptions()
+    {
+        string? caPath = Environment.GetEnvironmentVariable("MQTT_TLS_CA");
+        if (string.IsNullOrEmpty(caPath))
+        {
+            return null;
+        }
+        var certificate = X509CertificateLoader.LoadCertificateFromFile(caPath);
+
+        return new MqttClientTlsOptionsBuilder()
+            .UseTls(true)
+            .WithCertificateValidationHandler(args =>
+            {
+                if (args.SslPolicyErrors.HasFlag(SslPolicyErrors.RemoteCertificateNameMismatch))
+                {
+                    return false;
+                }
+                using var chain = new X509Chain
+                {
+                    ChainPolicy =
+                    {
+                        TrustMode = X509ChainTrustMode.CustomRootTrust,
+                        RevocationMode = X509RevocationMode.NoCheck,
+                        CustomTrustStore = { certificate },
+                    },
+                };
+                if (args.Certificate is X509Certificate2 serverCertificate)
+                {
+                    return chain.Build(serverCertificate);
+                }
+                using var convertedCert = X509CertificateLoader.LoadCertificate(
+                    args.Certificate.GetRawCertData()
+                );
+                return chain.Build(convertedCert);
+            })
+            .Build();
+    }
+
+    private static readonly MqttClientTlsOptions? Tls = CreateTlsOptions();
+
+    public static MqttClientOptionsBuilder ConfigureTransport(
+        MqttClientOptionsBuilder b,
+        string add
+    )
+    {
+        if (Tls is null)
+        {
+            return b.WithTcpServer(add, 1883);
+        }
+        return b.WithTcpServer(add, 8883).WithTlsOptions(Tls);
+    }
+
     public MqttApplicationMessage CreateClaimRequest(string claimToken)
     {
         var sensors = new List<SensorDeclaration>
@@ -129,8 +183,7 @@ public class VirtualDevice(string hardwareId)
         var mqttFactory = new MqttClientFactory();
 
         using var mqttClient = mqttFactory.CreateMqttClient();
-        var mqttClientOptions2 = new MqttClientOptionsBuilder()
-            .WithTcpServer(add, 1883)
+        var mqttClientOptions2 = ConfigureTransport(new MqttClientOptionsBuilder(), add)
             .WithClientId(key)
             .Build();
 
@@ -197,8 +250,7 @@ public class VirtualDevice(string hardwareId)
             return;
         }
 
-        var mqttClientOptions = new MqttClientOptionsBuilder()
-            .WithTcpServer(add, 1883)
+        var mqttClientOptions = ConfigureTransport(new MqttClientOptionsBuilder(), add)
             .WithClientId(hardwareId)
             .WithCredentials(
                 deserializededtaskCompleteResult.Username,
