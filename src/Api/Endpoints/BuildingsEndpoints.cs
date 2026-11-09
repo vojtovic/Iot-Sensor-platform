@@ -16,9 +16,9 @@ namespace api.Endpoints
 {
     public static class BuildingsEndpoints
     {
-        public static void GetBuilding(this WebApplication app)
+        public static void GetBuilding(this RouteGroupBuilder appRoute)
         {
-            var appRoute = app.MapGroup("/api/v1");
+
             appRoute.MapGet(
                 "/buildings/{id}",
                 async (AppDbContext iot, int id, CancellationToken ct) =>
@@ -43,9 +43,9 @@ namespace api.Endpoints
             );
         }
 
-        public static void GetBuildings(this WebApplication app)
+        public static void GetBuildings(this RouteGroupBuilder appRoute)
         {
-            var appRoute = app.MapGroup("/api/v1");
+
             appRoute.MapGet(
                 "/buildings",
                 async (AppDbContext iot, CancellationToken ct) =>
@@ -63,9 +63,9 @@ namespace api.Endpoints
             );
         }
 
-        public static void AddBuilding(this WebApplication app)
+        public static void AddBuilding(this RouteGroupBuilder appRoute)
         {
-            var appRoute = app.MapGroup("/api/v1");
+
             appRoute.MapPost(
                 "/buildings",
                 async (AppDbContext iot, AddBuildingDto request, CancellationToken ct) =>

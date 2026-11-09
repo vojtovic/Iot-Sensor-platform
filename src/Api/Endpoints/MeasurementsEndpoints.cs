@@ -16,9 +16,9 @@ namespace api.Endpoints
 {
     public static class MeasurementsEndpoints
     {
-        public static void GetDeviceMeasurements(this WebApplication app)
+        public static void GetDeviceMeasurements(this RouteGroupBuilder appRoute)
         {
-            var appRoute = app.MapGroup("/api/v1");
+
             appRoute.MapGet(
                 "/devices/{id}/measurements",
                 async (

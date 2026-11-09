@@ -79,6 +79,8 @@ services:
       - Mqtt__Provisioner__Username=provisioner
       - Mqtt__Provisioner__Password=${MQTT_PROVISIONER_PASSWORD:-provisioner-password}
       - Claim__GroupKey=${CLAIM_GROUP_KEY:-8c58c3e177ad0f0bfdc201a953a23d7455d18aa9d7c32bdc794ceda35cdb7ac4}
+      - Admin__Email=${ADMIN_EMAIL:-admin@iot.local}
+      - Admin__Password=${ADMIN_PASSWORD:-Admin123!}
     ports:
       - "5047:8080"
     restart: unless-stopped

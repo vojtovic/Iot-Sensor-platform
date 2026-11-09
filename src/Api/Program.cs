@@ -1,4 +1,5 @@
 using System.Net.Sockets;
+using System.Reflection.Metadata;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using api.Endpoints;
@@ -8,6 +9,10 @@ using Infrastructure;
 using Infrastructure.Messaging;
 using Infrastructure.Persistence;
 using Ingest;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.EntityFrameworkCore;
 using Npgsql.Internal;
@@ -21,6 +26,14 @@ builder.Services.AddDbContext<AppDbContext>(options =>
         .UseSnakeCaseNamingConvention()
 );
 
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseInMemoryDatabase("AppDb")
+);
+
+builder.Services.AddAuthorization(options =>
+    options.AddPolicy("Admin", policy => policy.RequireRole("Admin"))
+);
+
 builder.Services.AddSingleton<IMqttBus>(_ => new MqttBus(
     builder.Configuration["Mqtt:Host"]!,
     builder.Configuration["Mqtt:Username"]!,
@@ -30,6 +43,10 @@ builder.Services.AddSingleton<IMqttBus>(_ => new MqttBus(
     _.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping
 ));
 
+builder
+    .Services.AddIdentityApiEndpoints<IdentityUser>()
+    .AddRoles<IdentityRole>()
+    .AddEntityFrameworkStores<ApplicationDbContext>();
 builder.Services.AddHostedService<TelemetryWorker>();
 builder.Services.AddSingleton<TelemetryQueue>();
 
@@ -72,9 +89,57 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 builder.Services.AddOpenApi();
 var app = builder.Build();
+app.MapStaticAssets().AllowAnonymous();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
+
+    var email = builder.Configuration["Admin:Email"];
+    var password = builder.Configuration["Admin:Password"];
+    if (email is null || password is null)
+    {
+        throw new InvalidOperationException("No admin password or username");
+    }
+    if (!await roleManager.RoleExistsAsync("Admin"))
+    {
+        var result = await roleManager.CreateAsync(new IdentityRole("Admin"));
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(
+                "Admin role was not created: "
+                    + string.Join(", ", result.Errors.Select(e => e.Description))
+            );
+        }
+    }
+
+    var user = await userManager.FindByEmailAsync(email);
+    if (user is null)
+    {
+        user = new IdentityUser { UserName = email, Email = email };
+        var result = await userManager.CreateAsync(user, password);
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(
+                "Admin user was not created: "
+                    + string.Join(", ", result.Errors.Select(e => e.Description))
+            );
+        }
+    }
+
+    if (!await userManager.IsInRoleAsync(user, "Admin"))
+    {
+        var result = await userManager.AddToRoleAsync(user, "Admin");
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(
+                "Admin role was not assigned: "
+                    + string.Join(", ", result.Errors.Select(e => e.Description))
+            );
+        }
+    }
+
     db.Database.Migrate();
 }
 
@@ -84,31 +149,34 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
-app.GetDevices();
-app.GetDevice();
-app.GenerateClaimToken();
-app.UpdateDeviceStatusToDisable();
-app.UpdateDeviceStatusToRejected();
-app.GetBuildings();
-app.GetBuilding();
-app.GetRooms();
-app.GetRoom();
-app.UpdateDeviceRoom();
-app.GetDeviceMeasurements();
-app.UpdateSensor();
-app.UpdateActuator();
-app.AddBuilding();
-app.AddRoom();
-app.GetBuildingRooms();
-app.UpdateDeviceStatusToPending();
-app.UpdateDeviceStatusToApproved();
-app.ApproveDevice();
-app.AddSensorTypes();
-app.GetSensorsTypes();
-app.GetDeviceConfig();
-app.PutDeviceConfig();
-app.GetRequestedSensorTypes();
+var api = app.MapGroup("/api/v1").RequireAuthorization("Admin");
 
+app.MapIdentityApi<IdentityUser>();
+app.MapPost("/register", () => Results.NotFound()).WithOrder(-1);
+api.GetDevices();
+api.GetDevice();
+api.GenerateClaimToken();
+api.UpdateDeviceStatusToDisable();
+api.UpdateDeviceStatusToRejected();
+api.GetBuildings();
+api.GetBuilding();
+api.GetRooms();
+api.GetRoom();
+api.UpdateDeviceRoom();
+api.GetDeviceMeasurements();
+api.UpdateSensor();
+api.UpdateActuator();
+api.AddBuilding();
+api.AddRoom();
+api.GetBuildingRooms();
+api.UpdateDeviceStatusToPending();
+api.UpdateDeviceStatusToApproved();
+api.ApproveDevice();
+api.AddSensorTypes();
+api.GetSensorsTypes();
+api.GetDeviceConfig();
+api.PutDeviceConfig();
+api.GetRequestedSensorTypes();
 app.MapGet("/", () => "Hello World!");
 
 app.Run();

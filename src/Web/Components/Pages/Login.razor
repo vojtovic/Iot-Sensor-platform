@@ -1,0 +1,67 @@
+@page "/login"
+@attribute [AllowAnonymous]
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Authentication.Cookies
+@using Microsoft.AspNetCore.Authorization
+@inject IHttpClientFactory HttpFactory
+@inject NavigationManager Nav
+
+<h1>Login</h1>
+
+<EditForm Model="Input" FormName="login" OnValidSubmit="LoginAsync" method="post">
+    <InputText @bind-Value="Input.Email" class="form-control" placeholder="E-mail"/>
+    <InputText @bind-Value="Input.Password" type="password" class="form-control" placeholder="password"/>
+<button type="submit" class="btn btn-primary">Login</button>
+
+</EditForm>
+
+@if(error is not null){
+<div class="alert alert-danger">@error</div>
+}
+
+@code{
+    public record LoginResponse(string tokenType, string accessToken, int expiresIn, string refreshToken);
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+    [SupplyParameterFromForm] private LoginInput Input { get; set; } = new();
+    [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
+    private string? error;
+
+    private class LoginInput{
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+
+    private async Task LoginAsync() {
+        var api = HttpFactory.CreateClient("Api");
+        var response = await api.PostAsJsonAsync("login", new { email = Input.Email, password = Input.Password });
+
+        if (!response.IsSuccessStatusCode) {
+            error = "Wrong E-mail or Password";
+            return;
+        }
+        var result = await response.Content.ReadFromJsonAsync<LoginResponse>(ApiJson.Options);
+        if (result is null) {
+            error = "result is null";
+            return;
+        }
+        var identity = new ClaimsIdentity([new Claim(ClaimTypes.Name, Input.Email)], CookieAuthenticationDefaults.AuthenticationScheme);
+        var props = new AuthenticationProperties
+            {
+                ExpiresUtc = DateTimeOffset.UtcNow.AddSeconds(result.expiresIn)
+            };
+        props.StoreTokens([new AuthenticationToken { Name = "access_token", Value = result.accessToken }]);
+
+        await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity), props);
+        if(string.IsNullOrEmpty(ReturnUrl)){
+            Nav.NavigateTo("/");
+            return;
+        }else if(ReturnUrl.StartsWith("/") && !ReturnUrl.StartsWith("//")){
+
+            Nav.NavigateTo(ReturnUrl);
+            return;
+        }
+         Nav.NavigateTo("/");
+        return;
+    }
+}

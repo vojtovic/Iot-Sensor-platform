@@ -1,4 +1,5 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
+﻿
+<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="">Web</a>
     </div>
@@ -42,5 +43,15 @@
                          <span class="bi bi-modem" aria-hidden="true"></span> Sensor Types
                      </NavLink>
                  </div>
+
+                 <AuthorizeView><Authorized>
+                    <div class="nav-item px-3"><span class="nav-link bi bi person"> @context.User.Identity?.Name</span></div>
+                    <div class="nav-item px-3">
+                    <form action="logout" method="post">
+                        <AntiforgeryToken/>
+                        <button type="submit" class="nav-link btn btn-link"><span class="bi bi-box-arrow-right" aria-hidden="true"></span>Logout</button>
+                    </form>
+                    </div>
+                 </Authorized></AuthorizeView>
     </nav>
 </div>

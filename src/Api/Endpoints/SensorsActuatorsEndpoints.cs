@@ -16,9 +16,9 @@ namespace api.Endpoints
 {
     public static class SensorsEndpoints
     {
-        public static void UpdateSensor(this WebApplication app)
+        public static void UpdateSensor(this RouteGroupBuilder appRoute)
         {
-            var appRoute = app.MapGroup("/api/v1");
+
             appRoute.MapPatch(
                 "/sensors/{id}",
                 async (
@@ -89,9 +89,9 @@ namespace api.Endpoints
             );
         }
 
-        public static void UpdateActuator(this WebApplication app)
+        public static void UpdateActuator(this RouteGroupBuilder appRoute)
         {
-            var appRoute = app.MapGroup("/api/v1");
+
             appRoute.MapPatch(
                 "/actuators/{id}",
                 async (
@@ -161,9 +161,9 @@ namespace api.Endpoints
             );
         }
 
-        public static void GetSensorsTypes(this WebApplication app)
+        public static void GetSensorsTypes(this RouteGroupBuilder appRoute)
         {
-            var appRoute = app.MapGroup("/api/v1");
+
             appRoute.MapGet(
                 "/sensor-types",
                 async (AppDbContext iot, CancellationToken ct) =>
@@ -199,9 +199,9 @@ namespace api.Endpoints
             return true;
         }
 
-        public static void AddSensorTypes(this WebApplication app)
+        public static void AddSensorTypes(this RouteGroupBuilder appRoute)
         {
-            var appRoute = app.MapGroup("/api/v1");
+
             appRoute.MapPost(
                 "/sensor-types",
                 async (AppDbContext iot, AddSensorTypeDto request, CancellationToken ct) =>
@@ -272,9 +272,8 @@ namespace api.Endpoints
             );
         }
 
-        public static void GetRequestedSensorTypes(this WebApplication app)
+        public static void GetRequestedSensorTypes(this RouteGroupBuilder appRoute)
         {
-            var appRoute = app.MapGroup("/api/v1");
             appRoute.MapGet(
                 "/sensor-types/requested",
                 async (AppDbContext iot, CancellationToken ct) =>

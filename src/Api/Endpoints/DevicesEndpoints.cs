@@ -16,9 +16,9 @@ namespace api.Endpoints
 {
     public static class DevicesEndpoints
     {
-        public static void GetDevices(this WebApplication app)
+        public static void GetDevices(this RouteGroupBuilder appRoute)
         {
-            var appRoute = app.MapGroup("/api/v1");
+
             appRoute.MapGet(
                 "/devices",
                 async (AppDbContext iot, CancellationToken ct) =>
@@ -64,9 +64,9 @@ namespace api.Endpoints
             );
         }
 
-        public static void GetDevice(this WebApplication app)
+        public static void GetDevice(this RouteGroupBuilder appRoute)
         {
-            var appRoute = app.MapGroup("/api/v1");
+
             appRoute.MapGet(
                 "/devices/{id}",
                 async (AppDbContext iot, int id, CancellationToken ct) =>
@@ -120,9 +120,9 @@ namespace api.Endpoints
             );
         }
 
-        public static void GenerateClaimToken(this WebApplication app)
+        public static void GenerateClaimToken(this RouteGroupBuilder appRoute)
         {
-            var appRoute = app.MapGroup("/api/v1");
+
             appRoute.MapPost(
                 "/devices/{id}/generateclaimtoken",
                 async (AppDbContext iot, int id, CancellationToken ct) =>
@@ -159,9 +159,9 @@ namespace api.Endpoints
             );
         }
 
-        public static void UpdateDeviceStatusToDisable(this WebApplication app)
+        public static void UpdateDeviceStatusToDisable(this RouteGroupBuilder appRoute)
         {
-            var appRoute = app.MapGroup("/api/v1");
+
             appRoute.MapPost(
                 "/devices/{id}/disable",
                 async (
@@ -251,9 +251,9 @@ namespace api.Endpoints
             );
         }
 
-        public static void UpdateDeviceStatusToRejected(this WebApplication app)
+        public static void UpdateDeviceStatusToRejected(this RouteGroupBuilder appRoute)
         {
-            var appRoute = app.MapGroup("/api/v1");
+
             appRoute.MapPost(
                 "/devices/{id}/reject",
                 async (AppDbContext iot, int id, CancellationToken ct) =>
@@ -331,9 +331,9 @@ namespace api.Endpoints
             );
         }
 
-        public static void UpdateDeviceRoom(this WebApplication app)
+        public static void UpdateDeviceRoom(this RouteGroupBuilder appRoute)
         {
-            var appRoute = app.MapGroup("/api/v1");
+
             appRoute.MapPatch(
                 "/devices/{id}",
                 async (
@@ -396,9 +396,9 @@ namespace api.Endpoints
             );
         }
 
-        public static void UpdateDeviceStatusToPending(this WebApplication app)
+        public static void UpdateDeviceStatusToPending(this RouteGroupBuilder appRoute)
         {
-            var appRoute = app.MapGroup("/api/v1");
+
             appRoute.MapPost(
                 "/devices/{id}/restore",
                 async (AppDbContext iot, int id, CancellationToken ct) =>
@@ -425,9 +425,9 @@ namespace api.Endpoints
             );
         }
 
-        public static void UpdateDeviceStatusToApproved(this WebApplication app)
+        public static void UpdateDeviceStatusToApproved(this RouteGroupBuilder appRoute)
         {
-            var appRoute = app.MapGroup("/api/v1");
+
             appRoute.MapPost(
                 "/devices/{id}/enable",
                 async (
@@ -469,9 +469,9 @@ namespace api.Endpoints
             );
         }
 
-        public static void ApproveDevice(this WebApplication app)
+        public static void ApproveDevice(this RouteGroupBuilder appRoute)
         {
-            var appRoute = app.MapGroup("/api/v1");
+
             appRoute.MapPost(
                 "/devices/{id}/approved",
                 async (AppDbContext iot, int id, IMqttBus mqtt, CancellationToken ct) =>
@@ -512,9 +512,9 @@ namespace api.Endpoints
             PropertyNameCaseInsensitive = true,
         };
 
-        public static void GetDeviceConfig(this WebApplication app)
+        public static void GetDeviceConfig(this RouteGroupBuilder appRoute)
         {
-            var appRoute = app.MapGroup("/api/v1");
+
             appRoute.MapGet(
                 "/devices/{id}/config",
                 async (AppDbContext iot, int id, CancellationToken ct) =>
@@ -587,9 +587,9 @@ namespace api.Endpoints
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         };
 
-        public static void PutDeviceConfig(this WebApplication app)
+        public static void PutDeviceConfig(this RouteGroupBuilder appRoute)
         {
-            var appRoute = app.MapGroup("/api/v1");
+
             appRoute.MapPut(
                 "/devices/{id}/config",
                 async (
@@ -692,9 +692,9 @@ namespace api.Endpoints
             );
         }
 
-        public static void DisableDeviceConfig(this WebApplication app)
+        public static void DisableDeviceConfig(this RouteGroupBuilder appRoute)
         {
-            var appRoute = app.MapGroup("/api/v1");
+
             appRoute.MapPut(
                 "/devices/{id}/config/disable",
                 async (AppDbContext iot, int id, CancellationToken ct, IMqttBus mqtt) =>
