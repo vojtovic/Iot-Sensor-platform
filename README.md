@@ -21,7 +21,7 @@ IoT system for Acquisition, Transmission, and Storage of Sensor Data in Indoor E
 
 ## How to run it
 
- requirements: Docker (Docker Desktop for Win/mac-OS), Git, .NET 10 SDK (for Simulation)
+ reguirements: Docker (Docker Desktop for Win/mac-OS), Git, .NET 10 SDK (for Simulation)
 
   ```sh
   git clone https://github.com/vojtovic/Iot-Sensor-platform.git
@@ -60,6 +60,108 @@ dotnet run --project src/Simulator -- 100 1
 *Note: -- 1st parameter(Number of devices every device has 3 sensors , 2nd parameter number of seconds between measurements ,3rd parameter(optional) 10.42.0.54(ip address of broker))*
 
 *Note: Stop with Ctrl + C for summary.*
+
+## Message formats
+
+| Topic | Direction | QoS / retain | message |
+| --- | --- | --- | --- |
+| iot/v1/claim/request | device -> backend | 1 / no | registration request |
+| iot/v1/claim/response/{claimToken ?? hardwareId} | backend -> device | 1 / no | credentials or status |
+| iot/v1/{hardwareId}/telemetry | device -> backend | 1 / no | measurements |
+| iot/v1/{hardwareId}/status | device -> broker | 1 / yes | online / offline (Last Will) |
+| iot/v1/{hardwareId}/config | backend -> device | 1 / yes | configuration |
+| iot/v1/{hardwareId}/config/ack | device -> backend | 1 / no | configuration confirmation |
+
+Claim request
+
+```json
+{
+  "hardwareId": "sim-00001",
+  "claimToken": "7f3a9c…",
+  "firmwareVersion": "v.sim.0.1",
+  "ts": "2026-11-09T09:14:22Z",
+  "sensors": [
+    { "channel": "temp1", "type": "temperature" },
+    { "channel": "hum1",  "type": "humidity" },
+    { "channel": "co2",   "type": "co2" }
+  ],
+  "actuators": []
+}
+```
+
+Response with login information (status : "credentials")
+
+```json
+{
+  "status": "credentials",
+  "serverTime": "2026-11-09T09:14:25Z",
+  "username": "sim-00001",
+  "password": "…",
+  "retryAfter": null,
+  "message": null,
+  "channels": {
+    "sensors":   { "accepted": ["temp1", "hum1", "co2"], "pending": [] },
+    "actuators": { "accepted": [], "pending": [] }
+  }
+}
+```
+
+Response waiting for approval (pending)
+
+```json
+{ 
+  "status": "pending", 
+  "serverTime": "2026-11-09T09:14:25Z", 
+  "retryAfter": 60,
+  "message": "Waiting for approval" 
+}
+```
+
+Telemetry
+
+```json
+{
+  "ts": "2026-11-09T09:15:00Z",
+  "seq": 42,
+  "readings": [
+    { "channel": "temp1", "value": 23.481, "status": null },
+    { "channel": "hum1",  "value": 51.2,   "status": null },
+    { "channel": "co2",   "value": 10000,   "status": "error" }
+  ]
+}
+```
+
+*Note: A reading with status: "error" is stored with quality Error; a value outside the sensor type's valid range is stored as Suspect.*
+
+Configuration
+
+```json
+{
+  "version": 1,
+  "interval": 10,
+  "maxSilence": 300,
+  "channels": {
+    "sensors": [
+      { "enabled": true, "deadband": 0, "channel": "temp1" },
+      { "enabled": true, "deadband": 0, "channel": "hum1" }
+    ]
+  }
+}
+```
+
+Configuration acknowledgement
+
+```json
+{ 
+  "version": 1, 
+  "accepted": true, 
+  "error": null 
+}
+```
+
+Status
+
+The payload is plain text, online or offline, not JSON.
 
 ## Use of generative AI
 
