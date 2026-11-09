@@ -149,6 +149,8 @@ Configuration
 }
 ```
 
+*Note: Interval and maxSilence are in seconds.*
+
 Configuration acknowledgement
 
 ```json
