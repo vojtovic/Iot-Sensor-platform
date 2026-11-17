@@ -21,7 +21,7 @@ IoT system for Acquisition, Transmission, and Storage of Sensor Data in Indoor E
 
 ## How to run it
 
- reguirements: Docker (Docker Desktop for Win/mac-OS), Git, .NET 10 SDK (for Simulation)
+Requirements: Docker (Docker Desktop for Win/mac-OS), Git, .NET 10 SDK (for Simulation)
 
   ```sh
   git clone https://github.com/vojtovic/Iot-Sensor-platform.git
@@ -29,17 +29,73 @@ IoT system for Acquisition, Transmission, and Storage of Sensor Data in Indoor E
   docker compose up -d
   ```
 
-First start may take few minutes.
+The first start may take a few minutes (images are downloaded, the API and the web are built, TLS certificates are generated).
 
 | Service | URL | Note |
 | --- | --- | --- |
-| Test client (UI) | <http://localhost:5235> | devices, claims, sensor types |
-| API documentation | <http://localhost:5047/scalar/v1> | REST API (Scalar) |
+| Test client (UI) | <http://localhost:5235> | login `admin@iot.local` / `Admin123!` |
+| API documentation | <http://localhost:5047/scalar/v1> | REST API (Scalar), needs a token, see below |
 | Grafana | <http://localhost:3000> | view without login, admin: `admin` / `admin` |
-| MQTT broker | `localhost:1883` | for devices |
+| MQTT broker (TLS) | `<server>:8883` | for devices, CA certificate `docker/certs/data/ca.crt` |
+| MQTT broker | `localhost:1883` | without TLS, only from the same computer |
 | PostgreSQL / TimescaleDB | `localhost:5432` | database `timescaledb_iot` |
 
-You can simulate traffic by running simulator:
+Stop:
+
+```sh
+docker compose down # stops the containers, data are kept
+docker compose down -v # also deletes the database, Grafana and broker data
+```
+
+### Passwords and settings (.env)
+
+Without a `.env` file the default passwords from `docker-compose.yml` are used. That is fine for trying it out. To change them, create `.env` **before the first start**:
+
+```sh
+cp .env.example .env #Windows: copy .env.example .env
+```
+
+| Variable | Meaning |
+| --- | --- |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | login to the UI and the API |
+| `POSTGRES_PASSWORD`, `GRAFANA_DB_PASSWORD` | database |
+| `MOSQUITTO_DYNSEC_PASSWORD`, `MQTT_BACKEND_PASSWORD`, `MQTT_PROVISIONER_PASSWORD` | MQTT broker |
+| `CLAIM_GROUP_KEY` | key from which devices derive their device key (`openssl rand -hex 32`) |
+| `TLS_SAN` | names and IP addresses of the server in the broker certificate |
+
+*Note: the database and broker passwords are stored on the first start. To change them later, run `docker compose down -v` (deletes all data).*
+
+### Using the API
+
+All `/api/v1` endpoints need a token (otherwise `401`).
+
+1. In Scalar call `POST /login` with `{"email": "admin@iot.local", "password": "Admin123!"}`.
+2. Copy `accessToken` from the response.
+3. Send it with every request in the header `Authorization: Bearer <accessToken>`
+
+The token is valid for 1 hour.
+
+### Devices on the network (TLS)
+
+Devices outside the server connect to port **8883** with TLS and must trust the CA certificate `docker/certs/data/ca.crt`, created on the first start.
+
+The address the device uses must be in the certificate. By default it contains only `localhost` and `127.0.0.1`. Add the IP address of the server to `TLS_SAN` in `.env`, e.g.:
+
+```
+TLS_SAN=DNS:mosquitto,DNS:localhost,IP:127.0.0.1,IP:10.42.0.54
+```
+
+The certificate is created only once. After changing `TLS_SAN` delete the old one (this also creates a new CA, so copy the new `ca.crt` to the devices):
+
+```sh
+sudo rm -rf docker/certs/data     # Windows: Remove-Item -Recurse docker/certs/data
+docker compose up -d
+docker compose restart mosquitto
+```
+
+### Simulator
+
+The simulator behaves like real devices: each one derives its key from the group key, claims itself and sends measurements. Set the group key first (the default one from `docker-compose.yml`; if you set your own `CLAIM_GROUP_KEY` in `.env`, use that one):
 
 linux/macOS
 
@@ -53,13 +109,21 @@ PowerShell(win)
 $env:Claim__GroupKey = (Select-String -Path docker-compose.yml -Pattern 'CLAIM_GROUP_KEY:-([0-9a-fA-F]+)').Matches[0].Groups[1].Value 
 ```
 
+On the same computer as the server (port 1883, without TLS):
+
 ```sh
 dotnet run --project src/Simulator -- 100 1 
 ```
 
-*Note: -- 1st parameter(Number of devices every device has 3 sensors , 2nd parameter number of seconds between measurements ,3rd parameter(optional) 10.42.0.54(ip address of broker))*
+From another computer (port 8883, with TLS), copy `ca.crt` from the server and set:
 
-*Note: Stop with Ctrl + C for summary.*
+```sh
+export MQTT_TLS_CA=path/to/ca.crt                 # PowerShell: $env:MQTT_TLS_CA = "path\to\ca.crt"
+dotnet run --project src/Simulator -- 100 1 10.42.0.54
+```
+
+*Parameters: number of devices (each has 3 sensors), seconds between measurements,
+broker address (optional, default `localhost`). Stop with Ctrl+C to print a summary.*
 
 ## Message formats
 
